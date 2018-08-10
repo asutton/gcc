@@ -58,6 +58,8 @@
 #include "dumpfile.h"
 #include "builtins.h"
 #include "rtl-iter.h"
+#include "flags.h"
+#include "toplev.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -238,8 +240,9 @@ spu_option_override (void)
   flag_omit_frame_pointer = 1;
 
   /* Functions must be 8 byte aligned so we correctly handle dual issue */
-  if (align_functions < 8)
-    align_functions = 8;
+  parse_alignment_opts ();
+  if (align_functions.levels[0].get_value () < 8)
+    str_align_functions = "8";
 
   spu_hint_dist = 8*4 - spu_max_nops*4;
   if (spu_hint_dist < 0) 
@@ -2769,7 +2772,9 @@ static void
 spu_sched_init (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
 		int max_ready ATTRIBUTE_UNUSED)
 {
-  if (align_labels > 4 || align_loops > 4 || align_jumps > 4)
+  if (align_labels.levels[0].get_value () > 4
+      || align_loops.levels[0].get_value () > 4
+      || align_jumps.levels[0].get_value () > 4)
     {
       /* When any block might be at least 8-byte aligned, assume they
          will all be at least 8-byte aligned to make sure dual issue
@@ -7457,6 +7462,9 @@ static const struct attribute_spec spu_attribute_table[] =
 #define TARGET_STATIC_RTX_ALIGNMENT spu_static_rtx_alignment
 #undef TARGET_CONSTANT_ALIGNMENT
 #define TARGET_CONSTANT_ALIGNMENT spu_constant_alignment
+
+#undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
+#define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

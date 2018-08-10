@@ -844,9 +844,9 @@ package body Lib.Writ is
          --  Write source file name Nam and ALI file name for unit index Idx.
          --  Possibly change Nam to lowercase (generating a new file name).
 
-         --------------------------
-         -- Write_With_File_Name --
-         --------------------------
+         ---------------------------
+         -- Write_With_File_Names --
+         ---------------------------
 
          procedure Write_With_File_Names
            (Nam : in out File_Name_Type;
@@ -950,20 +950,35 @@ package body Lib.Writ is
                Write_Info_Tab (25);
 
                if Is_Spec_Name (Uname) then
-                  Body_Fname :=
-                    Get_File_Name
-                      (Get_Body_Name (Uname),
-                       Subunit => False, May_Fail => True);
 
-                  Body_Index :=
-                    Get_Unit_Index
-                      (Get_Body_Name (Uname));
+                  --  In GNATprove mode we must write the spec of a unit which
+                  --  requires a body if that body is not found. This will
+                  --  allow partial analysis on incomplete sources.
 
-                  if Body_Fname = No_File then
-                     Body_Fname := Get_File_Name (Uname, Subunit => False);
-                     Body_Index := Get_Unit_Index (Uname);
+                  if GNATprove_Mode then
+
+                     Body_Fname :=
+                       Get_File_Name (Get_Body_Name (Uname),
+                                       Subunit => False, May_Fail => True);
+
+                     Body_Index := Get_Unit_Index (Get_Body_Name (Uname));
+
+                     if Body_Fname = No_File then
+                        Body_Fname := Get_File_Name (Uname, Subunit => False);
+                        Body_Index := Get_Unit_Index (Uname);
+                     end if;
+
+                  --  In the normal path we don't allow failure in fetching the
+                  --  name of the desired body unit so that it may be properly
+                  --  referenced in the output ali - even if it is missing.
+
+                  else
+                     Body_Fname :=
+                       Get_File_Name (Get_Body_Name (Uname),
+                                       Subunit => False, May_Fail => False);
+
+                     Body_Index := Get_Unit_Index (Get_Body_Name (Uname));
                   end if;
-
                else
                   Body_Fname := Get_File_Name (Uname, Subunit => False);
                   Body_Index := Get_Unit_Index (Uname);
@@ -1539,10 +1554,18 @@ package body Lib.Writ is
             --  Normal case of a unit entry with a source index
 
             if Sind > No_Source_File then
-               Fname := File_Name (Sind);
+               --  We never want directory information in ALI files
+               --  ???But back out this change temporarily until
+               --  gprbuild is fixed.
 
-               --  Ensure that on platforms where the file names are not case
-               --  sensitive, the recorded file name is in lower case.
+               if False then
+                  Fname := Strip_Directory (File_Name (Sind));
+               else
+                  Fname := File_Name (Sind);
+               end if;
+
+               --  Ensure that on platforms where the file names are not
+               --  case sensitive, the recorded file name is in lower case.
 
                if not File_Names_Case_Sensitive then
                   Get_Name_String (Fname);

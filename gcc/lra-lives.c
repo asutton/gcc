@@ -581,7 +581,8 @@ check_pseudos_live_through_calls (int regno,
   for (hr = 0; hr < FIRST_PSEUDO_REGISTER; hr++)
     if (targetm.hard_regno_call_part_clobbered (hr,
 						PSEUDO_REGNO_MODE (regno)))
-      SET_HARD_REG_BIT (lra_reg_info[regno].conflict_hard_regs, hr);
+      add_to_hard_reg_set (&lra_reg_info[regno].conflict_hard_regs,
+			   PSEUDO_REGNO_MODE (regno), hr);
   lra_reg_info[regno].call_p = true;
   if (! sparseset_bit_p (pseudos_live_through_setjumps, regno))
     return;
@@ -657,7 +658,7 @@ process_bb_lives (basic_block bb, int &curr_point, bool dead_insn_p)
       bool call_p;
       int n_alt, dst_regno, src_regno;
       rtx set;
-      struct lra_insn_reg *reg;
+      struct lra_insn_reg *reg, *hr;
 
       if (!NONDEBUG_INSN_P (curr_insn))
 	continue;
@@ -689,11 +690,12 @@ process_bb_lives (basic_block bb, int &curr_point, bool dead_insn_p)
 		break;
 	      }
 	  for (reg = curr_static_id->hard_regs; reg != NULL; reg = reg->next)
-	    if (reg->type != OP_IN)
+	    if (reg->type != OP_IN && !reg->clobber_high)
 	      {
 		remove_p = false;
 		break;
 	      }
+
 	  if (remove_p && ! volatile_refs_p (PATTERN (curr_insn)))
 	    {
 	      dst_regno = REGNO (SET_DEST (set));
@@ -811,14 +813,24 @@ process_bb_lives (basic_block bb, int &curr_point, bool dead_insn_p)
 	 unused values because they still conflict with quantities
 	 that are live at the time of the definition.  */
       for (reg = curr_id->regs; reg != NULL; reg = reg->next)
-	if (reg->type != OP_IN)
-	  {
-	    need_curr_point_incr
-	      |= mark_regno_live (reg->regno, reg->biggest_mode,
-				  curr_point);
-	    check_pseudos_live_through_calls (reg->regno,
-					      last_call_used_reg_set);
-	  }
+	{
+	  if (reg->type != OP_IN)
+	    {
+	      need_curr_point_incr
+		|= mark_regno_live (reg->regno, reg->biggest_mode,
+				    curr_point);
+	      check_pseudos_live_through_calls (reg->regno,
+						last_call_used_reg_set);
+	    }
+
+	  if (reg->regno >= FIRST_PSEUDO_REGISTER)
+	    for (hr = curr_static_id->hard_regs; hr != NULL; hr = hr->next)
+	      if (hr->clobber_high
+		  && maybe_gt (GET_MODE_SIZE (PSEUDO_REGNO_MODE (reg->regno)),
+			       GET_MODE_SIZE (hr->biggest_mode)))
+		SET_HARD_REG_BIT (lra_reg_info[reg->regno].conflict_hard_regs,
+				  hr->regno);
+	}
 
       for (reg = curr_static_id->hard_regs; reg != NULL; reg = reg->next)
 	if (reg->type != OP_IN)

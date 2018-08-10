@@ -85,7 +85,7 @@ Target RejectNegative Joined Enum(cmodel) Var(aarch64_cmodel_var) Init(AARCH64_C
 Specify the code model.
 
 mstrict-align
-Target Report RejectNegative Mask(STRICT_ALIGN) Save
+Target Report Mask(STRICT_ALIGN) Save
 Don't assume that unaligned accesses are handled by the system.
 
 momit-leaf-frame-pointer
@@ -214,3 +214,7 @@ Target RejectNegative Joined Enum(sve_vector_bits) Var(aarch64_sve_vector_bits) 
 mverbose-cost-dump
 Common Undocumented Var(flag_aarch64_verbose_cost)
 Enables verbose cost model dumping in the debug dump files.
+
+mtrack-speculation
+Target Var(aarch64_track_speculation)
+Generate code to track when the CPU might be speculating incorrectly.

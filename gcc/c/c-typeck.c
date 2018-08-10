@@ -2207,9 +2207,14 @@ lookup_field (tree type, tree component)
   /* If TYPE_LANG_SPECIFIC is set, then it is a sorted array of pointers
      to the field elements.  Use a binary search on this array to quickly
      find the element.  Otherwise, do a linear search.  TYPE_LANG_SPECIFIC
-     will always be set for structures which have many elements.  */
+     will always be set for structures which have many elements.
 
-  if (TYPE_LANG_SPECIFIC (type) && TYPE_LANG_SPECIFIC (type)->s)
+     Duplicate field checking replaces duplicates with NULL_TREE so
+     TYPE_LANG_SPECIFIC arrays are potentially no longer sorted.  In that
+     case just iterate using DECL_CHAIN.  */
+
+  if (TYPE_LANG_SPECIFIC (type) && TYPE_LANG_SPECIFIC (type)->s
+      && !seen_error ())
     {
       int bot, top, half;
       tree *field_array = &TYPE_LANG_SPECIFIC (type)->s->elts[0];
@@ -3840,7 +3845,12 @@ pointer_diff (location_t loc, tree op0, tree op1, tree *instrument_expr)
     op0 = build_binary_op (loc, MINUS_EXPR, convert (inttype, op0),
 			   convert (inttype, op1), false);
   else
-    op0 = build2_loc (loc, POINTER_DIFF_EXPR, inttype, op0, op1);
+    {
+      /* Cast away qualifiers.  */
+      op0 = convert (c_common_type (TREE_TYPE (op0), TREE_TYPE (op0)), op0);
+      op1 = convert (c_common_type (TREE_TYPE (op1), TREE_TYPE (op1)), op1);
+      op0 = build2_loc (loc, POINTER_DIFF_EXPR, inttype, op0, op1);
+    }
 
   /* This generates an error if op1 is pointer to incomplete type.  */
   if (!COMPLETE_OR_VOID_TYPE_P (TREE_TYPE (TREE_TYPE (orig_op1))))
@@ -4314,6 +4324,16 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
 	arg = default_conversion (arg);
       break;
 
+    case ABSU_EXPR:
+      if (!(typecode == INTEGER_TYPE))
+	{
+	  error_at (location, "wrong type argument to absu");
+	  return error_mark_node;
+	}
+      else if (!noconvert)
+	arg = default_conversion (arg);
+      break;
+
     case CONJ_EXPR:
       /* Conjugating a real value is a no-op, but allow it anyway.  */
       if (!(typecode == INTEGER_TYPE || typecode == REAL_TYPE
@@ -4676,7 +4696,7 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
       if (val && INDIRECT_REF_P (val)
           && TREE_CONSTANT (TREE_OPERAND (val, 0)))
 	{
-	  ret = fold_convert_loc (location, argtype, fold_offsetof_1 (arg));
+	  ret = fold_offsetof (arg, argtype);
 	  goto return_build_unary_op;
 	}
 
@@ -9315,6 +9335,65 @@ output_init_element (location_t loc, tree value, tree origtype,
     output_pending_init_elements (0, braced_init_obstack);
 }
 
+/* For two FIELD_DECLs in the same chain, return -1 if field1
+   comes before field2, 1 if field1 comes after field2 and
+   0 if field1 == field2.  */
+
+static int
+init_field_decl_cmp (tree field1, tree field2)
+{
+  if (field1 == field2)
+    return 0;
+
+  tree bitpos1 = bit_position (field1);
+  tree bitpos2 = bit_position (field2);
+  if (tree_int_cst_equal (bitpos1, bitpos2))
+    {
+      /* If one of the fields has non-zero bitsize, then that
+	 field must be the last one in a sequence of zero
+	 sized fields, fields after it will have bigger
+	 bit_position.  */
+      if (TREE_TYPE (field1) != error_mark_node
+	  && COMPLETE_TYPE_P (TREE_TYPE (field1))
+	  && integer_nonzerop (TREE_TYPE (field1)))
+	return 1;
+      if (TREE_TYPE (field2) != error_mark_node
+	  && COMPLETE_TYPE_P (TREE_TYPE (field2))
+	  && integer_nonzerop (TREE_TYPE (field2)))
+	return -1;
+      /* Otherwise, fallback to DECL_CHAIN walk to find out
+	 which field comes earlier.  Walk chains of both
+	 fields, so that if field1 and field2 are close to each
+	 other in either order, it is found soon even for large
+	 sequences of zero sized fields.  */
+      tree f1 = field1, f2 = field2;
+      while (1)
+	{
+	  f1 = DECL_CHAIN (f1);
+	  f2 = DECL_CHAIN (f2);
+	  if (f1 == NULL_TREE)
+	    {
+	      gcc_assert (f2);
+	      return 1;
+	    }
+	  if (f2 == NULL_TREE)
+	    return -1;
+	  if (f1 == field2)
+	    return -1;
+	  if (f2 == field1)
+	    return 1;
+	  if (!tree_int_cst_equal (bit_position (f1), bitpos1))
+	    return 1;
+	  if (!tree_int_cst_equal (bit_position (f2), bitpos1))
+	    return -1;
+	}
+    }
+  else if (tree_int_cst_lt (bitpos1, bitpos2))
+    return -1;
+  else
+    return 1;
+}
+
 /* Output any pending elements which have become next.
    As we output elements, constructor_unfilled_{fields,index}
    advances, which may cause other elements to become next;
@@ -9386,25 +9465,18 @@ output_pending_init_elements (int all, struct obstack * braced_init_obstack)
 	}
       else if (RECORD_OR_UNION_TYPE_P (constructor_type))
 	{
-	  tree ctor_unfilled_bitpos, elt_bitpos;
-
 	  /* If the current record is complete we are done.  */
 	  if (constructor_unfilled_fields == NULL_TREE)
 	    break;
 
-	  ctor_unfilled_bitpos = bit_position (constructor_unfilled_fields);
-	  elt_bitpos = bit_position (elt->purpose);
-	  /* We can't compare fields here because there might be empty
-	     fields in between.  */
-	  if (tree_int_cst_equal (elt_bitpos, ctor_unfilled_bitpos))
-	    {
-	      constructor_unfilled_fields = elt->purpose;
-	      output_init_element (input_location, elt->value, elt->origtype,
-				   true, TREE_TYPE (elt->purpose),
-				   elt->purpose, false, false,
-				   braced_init_obstack);
-	    }
-	  else if (tree_int_cst_lt (ctor_unfilled_bitpos, elt_bitpos))
+	  int cmp = init_field_decl_cmp (constructor_unfilled_fields,
+					 elt->purpose);
+	  if (cmp == 0)
+	    output_init_element (input_location, elt->value, elt->origtype,
+				 true, TREE_TYPE (elt->purpose),
+				 elt->purpose, false, false,
+				 braced_init_obstack);
+	  else if (cmp < 0)
 	    {
 	      /* Advance to the next smaller node.  */
 	      if (elt->left)
@@ -9430,8 +9502,8 @@ output_pending_init_elements (int all, struct obstack * braced_init_obstack)
 		    elt = elt->parent;
 		  elt = elt->parent;
 		  if (elt
-		      && (tree_int_cst_lt (ctor_unfilled_bitpos,
-					   bit_position (elt->purpose))))
+		      && init_field_decl_cmp (constructor_unfilled_fields,
+					      elt->purpose) < 0)
 		    {
 		      next = elt->purpose;
 		      break;
@@ -10133,13 +10205,13 @@ c_finish_return (location_t loc, tree retval, tree origtype)
   if (!retval)
     {
       current_function_returns_null = 1;
-      if ((warn_return_type || flag_isoc99)
+      if ((warn_return_type >= 0 || flag_isoc99)
 	  && valtype != NULL_TREE && TREE_CODE (valtype) != VOID_TYPE)
 	{
 	  bool warned_here;
 	  if (flag_isoc99)
 	    warned_here = pedwarn
-	      (loc, 0,
+	      (loc, warn_return_type >= 0 ? OPT_Wreturn_type : 0,
 	       "%<return%> with no value, in function returning non-void");
 	  else
 	    warned_here = warning_at
@@ -10157,7 +10229,7 @@ c_finish_return (location_t loc, tree retval, tree origtype)
       bool warned_here;
       if (TREE_CODE (TREE_TYPE (retval)) != VOID_TYPE)
 	warned_here = pedwarn
-	  (xloc, 0,
+	  (xloc, warn_return_type >= 0 ? OPT_Wreturn_type : 0,
 	   "%<return%> with a value, in function returning void");
       else
 	warned_here = pedwarn
@@ -13882,6 +13954,8 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	case OMP_CLAUSE_WORKER:
 	case OMP_CLAUSE_VECTOR:
 	case OMP_CLAUSE_TILE:
+	case OMP_CLAUSE_IF_PRESENT:
+	case OMP_CLAUSE_FINALIZE:
 	  pc = &OMP_CLAUSE_CHAIN (c);
 	  continue;
 

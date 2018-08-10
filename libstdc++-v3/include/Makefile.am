@@ -30,6 +30,7 @@ std_headers = \
 	${std_srcdir}/any \
 	${std_srcdir}/array \
 	${std_srcdir}/atomic \
+	${std_srcdir}/bit \
 	${std_srcdir}/bitset \
 	${std_srcdir}/charconv \
 	${std_srcdir}/chrono \
@@ -53,6 +54,7 @@ std_headers = \
 	${std_srcdir}/locale \
 	${std_srcdir}/map \
 	${std_srcdir}/memory \
+	${std_srcdir}/memory_resource \
 	${std_srcdir}/mutex \
 	${std_srcdir}/numeric \
 	${std_srcdir}/optional \
@@ -80,7 +82,8 @@ std_headers = \
 	${std_srcdir}/utility \
 	${std_srcdir}/valarray \
 	${std_srcdir}/variant \
-	${std_srcdir}/vector
+	${std_srcdir}/vector \
+	${std_srcdir}/version
 
 bits_srcdir = ${glibcxx_srcdir}/include/bits
 bits_builddir = ./bits
@@ -196,6 +199,7 @@ bits_headers = \
 	${bits_srcdir}/stringfwd.h \
 	${bits_srcdir}/string_view.tcc \
 	${bits_srcdir}/uniform_int_dist.h \
+	${bits_srcdir}/unique_lock.h \
 	${bits_srcdir}/unique_ptr.h \
 	${bits_srcdir}/unordered_map.h \
 	${bits_srcdir}/unordered_set.h \
@@ -1232,10 +1236,10 @@ endif
 
 if ENABLE_FLOAT128
 stamp-float128:
-	echo 1 > stamp-float128
+	echo 'define _GLIBCXX_USE_FLOAT128 1' > stamp-float128
 else
 stamp-float128:
-	echo 0 > stamp-float128
+	echo 'undef _GLIBCXX_USE_FLOAT128' > stamp-float128
 endif
 
 # NB: The non-empty default ldbl_compat works around an AIX sed
@@ -1272,7 +1276,7 @@ ${host_builddir}/c++config.h: ${CONFIG_HEADER} \
 	-e "s,define _GLIBCXX_USE_DUAL_ABI, define _GLIBCXX_USE_DUAL_ABI $$dualabi," \
 	-e "s,define _GLIBCXX_USE_CXX11_ABI, define _GLIBCXX_USE_CXX11_ABI $$cxx11abi," \
 	-e "s,define _GLIBCXX_USE_ALLOCATOR_NEW, define _GLIBCXX_USE_ALLOCATOR_NEW $$allocatornew," \
-	-e "s,define _GLIBCXX_USE_FLOAT128, define _GLIBCXX_USE_FLOAT128 $$float128," \
+	-e "s,define _GLIBCXX_USE_FLOAT128,$$float128," \
 	-e "$$ldbl_compat" \
 	    < ${glibcxx_srcdir}/include/bits/c++config > $@ ;\
 	sed -e 's/HAVE_/_GLIBCXX_HAVE_/g' \

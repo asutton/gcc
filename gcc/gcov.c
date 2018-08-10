@@ -432,6 +432,9 @@ static unsigned bbg_stamp;
 /* Supports has_unexecuted_blocks functionality.  */
 static unsigned bbg_supports_has_unexecuted_blocks;
 
+/* Working directory in which a TU was compiled.  */
+static const char *bbg_cwd;
+
 /* Name and file pointer of the input file for the count data (gcda).  */
 
 static char *da_file_name;
@@ -458,6 +461,10 @@ static int flag_unconditional = 0;
    be turned off by the -n option.  */
 
 static int flag_gcov_file = 1;
+
+/* Output to stdout instead to a gcov file.  */
+
+static int flag_use_stdout = 0;
 
 /* Output progress indication if this is true.  This is off by default
    and can be turned on by the -d option.  */
@@ -536,6 +543,7 @@ static int process_args (int, char **);
 static void print_usage (int) ATTRIBUTE_NORETURN;
 static void print_version (void) ATTRIBUTE_NORETURN;
 static void process_file (const char *);
+static void process_all_functions (void);
 static void generate_results (const char *);
 static void create_file_names (const char *);
 static char *canonicalize_name (const char *);
@@ -791,6 +799,7 @@ main (int argc, char **argv)
 
       if (flag_intermediate_format || argno == argc - 1)
 	{
+	  process_all_functions ();
 	  generate_results (argv[argno]);
 	  release_structures ();
 	}
@@ -828,6 +837,7 @@ print_usage (int error_p)
   fnotice (file, "  -p, --preserve-paths            Preserve all pathname components\n");
   fnotice (file, "  -r, --relative-only             Only show data for relative sources\n");
   fnotice (file, "  -s, --source-prefix DIR         Source prefix to elide\n");
+  fnotice (file, "  -t, --stdout                    Output to stdout instead of a file\n");
   fnotice (file, "  -u, --unconditional-branches    Show unconditional branch counts too\n");
   fnotice (file, "  -v, --version                   Print version number, then exit\n");
   fnotice (file, "  -w, --verbose                   Print verbose informations\n");
@@ -871,6 +881,7 @@ static const struct option options[] =
   { "object-directory",     required_argument, NULL, 'o' },
   { "object-file",          required_argument, NULL, 'o' },
   { "source-prefix",        required_argument, NULL, 's' },
+  { "stdout",		    no_argument,       NULL, 't' },
   { "unconditional-branches", no_argument,     NULL, 'u' },
   { "display-progress",     no_argument,       NULL, 'd' },
   { "hash-filenames",	    no_argument,       NULL, 'x' },
@@ -885,7 +896,7 @@ process_args (int argc, char **argv)
 {
   int opt;
 
-  const char *opts = "abcdfhijklmno:prs:uvwx";
+  const char *opts = "abcdfhijklmno:prs:tuvwx";
   while ((opt = getopt_long (argc, argv, opts, options, NULL)) != -1)
     {
       switch (opt)
@@ -948,6 +959,9 @@ process_args (int argc, char **argv)
 	  break;
 	case 'w':
 	  flag_verbose = 1;
+	  break;
+	case 't':
+	  flag_use_stdout = 1;
 	  break;
 	case 'v':
 	  print_version ();
@@ -1037,6 +1051,7 @@ output_intermediate_file (FILE *gcov_file, source_info *src)
 {
   fprintf (gcov_file, "version:%s\n", version_string);
   fprintf (gcov_file, "file:%s\n", src->name);    /* source file name */
+  fprintf (gcov_file, "cwd:%s\n", bbg_cwd);
 
   std::sort (src->functions.begin (), src->functions.end (),
 	     function_line_start_cmp ());
@@ -1132,11 +1147,14 @@ process_file (const char *file_name)
 {
   create_file_names (file_name);
   read_graph_file ();
-  if (functions.empty ())
-    return;
-
   read_count_file ();
+}
 
+/* Process all functions in all files.  */
+
+static void
+process_all_functions (void)
+{
   hash_map<function_start_pair_hash, function_info *> fn_map;
 
   /* Identify group functions.  */
@@ -1213,7 +1231,6 @@ process_file (const char *file_name)
 	  if (fn->is_group)
 	    fn->lines.resize (fn->end_line - fn->start_line + 1);
 
-
 	  solve_flow_graph (fn);
 	  if (fn->has_catch)
 	    find_exception_blocks (fn);
@@ -1289,7 +1306,7 @@ generate_results (const char *file_name)
 	file_name = canonicalize_name (file_name);
     }
 
-  if (flag_gcov_file && flag_intermediate_format)
+  if (flag_gcov_file && flag_intermediate_format && !flag_use_stdout)
     {
       /* Open the intermediate file.  */
       gcov_intermediate_filename = get_gcov_intermediate_filename (file_name);
@@ -1321,7 +1338,9 @@ generate_results (const char *file_name)
 	}
 
       accumulate_line_counts (src);
-      function_summary (&src->coverage, "File");
+
+      if (!flag_use_stdout)
+	function_summary (&src->coverage, "File");
       total_lines += src->coverage.lines;
       total_executed += src->coverage.lines_executed;
       if (flag_gcov_file)
@@ -1329,14 +1348,25 @@ generate_results (const char *file_name)
 	  if (flag_intermediate_format)
 	    /* Output the intermediate format without requiring source
 	       files.  This outputs a section to a *single* file.  */
-	    output_intermediate_file (gcov_intermediate_file, src);
+	    output_intermediate_file ((flag_use_stdout
+				       ? stdout : gcov_intermediate_file), src);
 	  else
-	    output_gcov_file (file_name, src);
-	  fnotice (stdout, "\n");
+	    {
+	      if (flag_use_stdout)
+		{
+		  if (src->coverage.lines)
+		    output_lines (stdout, src);
+		}
+	      else
+		{
+		  output_gcov_file (file_name, src);
+		  fnotice (stdout, "\n");
+		}
+	    }
 	}
     }
 
-  if (flag_gcov_file && flag_intermediate_format)
+  if (flag_gcov_file && flag_intermediate_format && !flag_use_stdout)
     {
       /* Now we've finished writing the intermediate file.  */
       fclose (gcov_intermediate_file);
@@ -1550,6 +1580,7 @@ read_graph_file (void)
 	       bbg_file_name, v, e);
     }
   bbg_stamp = gcov_read_unsigned ();
+  bbg_cwd = xstrdup (gcov_read_string ());
   bbg_supports_has_unexecuted_blocks = gcov_read_unsigned ();
 
   function_info *fn = NULL;
@@ -1774,7 +1805,7 @@ read_count_file (void)
 	{
 	  struct gcov_summary summary;
 	  gcov_read_summary (&summary);
-	  object_runs += summary.ctrs[GCOV_COUNTER_ARCS].runs;
+	  object_runs += summary.runs;
 	  program_count++;
 	}
       else if (tag == GCOV_TAG_FUNCTION && !length)
@@ -2176,50 +2207,24 @@ format_count (gcov_type count)
 }
 
 /* Format a GCOV_TYPE integer as either a percent ratio, or absolute
-   count.  If dp >= 0, format TOP/BOTTOM * 100 to DP decimal places.
-   If DP is zero, no decimal point is printed. Only print 100% when
-   TOP==BOTTOM and only print 0% when TOP=0.  If dp < 0, then simply
+   count.  If DECIMAL_PLACES >= 0, format TOP/BOTTOM * 100 to DECIMAL_PLACES.
+   If DECIMAL_PLACES is zero, no decimal point is printed. Only print 100% when
+   TOP==BOTTOM and only print 0% when TOP=0.  If DECIMAL_PLACES < 0, then simply
    format TOP.  Return pointer to a static string.  */
 
 static char const *
-format_gcov (gcov_type top, gcov_type bottom, int dp)
+format_gcov (gcov_type top, gcov_type bottom, int decimal_places)
 {
   static char buffer[20];
 
-  /* Handle invalid values that would result in a misleading value.  */
-  if (bottom != 0 && top > bottom && dp >= 0)
+  if (decimal_places >= 0)
     {
-      sprintf (buffer, "NAN %%");
-      return buffer;
-    }
+      float ratio = bottom ? 100.0f * top / bottom: 0;
 
-  if (dp >= 0)
-    {
-      float ratio = bottom ? (float)top / bottom : 0;
-      int ix;
-      unsigned limit = 100;
-      unsigned percent;
-
-      for (ix = dp; ix--; )
-	limit *= 10;
-
-      percent = (unsigned) (ratio * limit + (float)0.5);
-      if (percent <= 0 && top)
-	percent = 1;
-      else if (percent >= limit && top != bottom)
-	percent = limit - 1;
-      ix = sprintf (buffer, "%.*u%%", dp + 1, percent);
-      if (dp)
-	{
-	  dp++;
-	  do
-	    {
-	      buffer[ix+1] = buffer[ix];
-	      ix--;
-	    }
-	  while (dp--);
-	  buffer[ix + 1] = '.';
-	}
+      /* Round up to 1% if there's a small non-zero value.  */
+      if (ratio > 0.0f && ratio < 0.5f && decimal_places == 0)
+	ratio = 1.0f;
+      sprintf (buffer, "%.*f%%", decimal_places, ratio);
     }
   else
     return format_count (top);
@@ -2434,42 +2439,7 @@ mangle_name (char const *base, char *ptr)
       ptr += len;
     }
   else
-    {
-      /* Convert '/' to '#', convert '..' to '^',
-	 convert ':' to '~' on DOS based file system.  */
-      const char *probe;
-
-#if HAVE_DOS_BASED_FILE_SYSTEM
-      if (base[0] && base[1] == ':')
-	{
-	  ptr[0] = base[0];
-	  ptr[1] = '~';
-	  ptr += 2;
-	  base += 2;
-	}
-#endif
-      for (; *base; base = probe)
-	{
-	  size_t len;
-
-	  for (probe = base; *probe; probe++)
-	    if (*probe == '/')
-	      break;
-	  len = probe - base;
-	  if (len == 2 && base[0] == '.' && base[1] == '.')
-	    *ptr++ = '^';
-	  else
-	    {
-	      memcpy (ptr, base, len);
-	      ptr += len;
-	    }
-	  if (*probe)
-	    {
-	      *ptr++ = '#';
-	      probe++;
-	    }
-	}
-    }
+    ptr = mangle_path (base);
 
   return ptr;
 }

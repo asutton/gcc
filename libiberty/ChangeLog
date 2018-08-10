@@ -1,3 +1,37 @@
+2018-07-30  Tom Tromey  <tom@tromey.com>
+
+	* cplus-dem.c (remember_Btype): Don't call memcpy with LEN==0.
+
+2018-07-26  Martin Liska  <mliska@suse.cz>
+
+        PR lto/86548
+	* make-temp-file.c (TEMP_FILE): Remove leading 'cc'.
+	(make_temp_file): Call make_temp_file_with_prefix with
+        first argument set to NULL.
+	(make_temp_file_with_prefix): Support also prefix.
+
+2018-07-19  Eli Zaretskii  <eliz@gnu.org>
+
+	* simple-object-elf.c (ENOTSUP): If not defined by errno.h, redirect
+	to ENOSYS.
+
+2018-05-30  Jan Hubicka  <hubicka@ucw.cz>
+
+	* simple-object.c (handle_lto_debug_sections): Add rename parameter.
+	(handle_lto_debug_sections_rename): New function.
+	(handle_lto_debug_sections_norename): New function.
+	(simple_object_copy_lto_debug_sections): Add rename parameter.
+
+2018-05-28  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* splay-tree.c (splay_tree_compare_strings,
+	splay_tree_delete_pointers): New utility functions.
+
+2018-05-10  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/64914
+	* md5.c: Use strict alignment with UBSAN_BOOTSTRAP.
+
 2018-04-30  Daniel van Gerpen  <daniel@vangerpen.de>
 
 	* argv.c (expandargv): Fix memory leak for copied argv.

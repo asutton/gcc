@@ -393,6 +393,14 @@ default_mangle_assembler_name (const char *name ATTRIBUTE_UNUSED)
   return get_identifier (stripped);
 }
 
+/* The default implementation of TARGET_TRANSLATE_MODE_ATTRIBUTE.  */
+
+machine_mode
+default_translate_mode_attribute (machine_mode mode)
+{
+  return mode;
+}
+
 /* True if MODE is valid for the target.  By "valid", we mean able to
    be manipulated in non-trivial ways.  In particular, this means all
    the arithmetic is supported.
@@ -2222,53 +2230,6 @@ std_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
   return build_va_arg_indirect_ref (addr);
 }
 
-tree
-default_chkp_bound_type (void)
-{
-  tree res = make_node (POINTER_BOUNDS_TYPE);
-  TYPE_PRECISION (res) = TYPE_PRECISION (size_type_node) * 2;
-  TYPE_NAME (res) = get_identifier ("__bounds_type");
-  SET_TYPE_MODE (res, targetm.chkp_bound_mode ());
-  layout_type (res);
-  return res;
-}
-
-machine_mode
-default_chkp_bound_mode (void)
-{
-  return VOIDmode;
-}
-
-tree
-default_builtin_chkp_function (unsigned int fcode ATTRIBUTE_UNUSED)
-{
-  return NULL_TREE;
-}
-
-rtx
-default_chkp_function_value_bounds (const_tree ret_type ATTRIBUTE_UNUSED,
-				    const_tree fn_decl_or_type ATTRIBUTE_UNUSED,
-				    bool outgoing ATTRIBUTE_UNUSED)
-{
-  gcc_unreachable ();
-}
-
-tree
-default_chkp_make_bounds_constant (HOST_WIDE_INT lb ATTRIBUTE_UNUSED,
-				   HOST_WIDE_INT ub ATTRIBUTE_UNUSED)
-{
-  return NULL_TREE;
-}
-
-int
-default_chkp_initialize_bounds (tree var ATTRIBUTE_UNUSED,
-				tree lb ATTRIBUTE_UNUSED,
-				tree ub ATTRIBUTE_UNUSED,
-				tree *stmts ATTRIBUTE_UNUSED)
-{
-  return 0;
-}
-
 void
 default_setup_incoming_vararg_bounds (cumulative_args_t ca ATTRIBUTE_UNUSED,
 				      machine_mode mode ATTRIBUTE_UNUSED,
@@ -2343,6 +2304,53 @@ default_stack_clash_protection_final_dynamic_probe (rtx residual ATTRIBUTE_UNUSE
 void
 default_select_early_remat_modes (sbitmap)
 {
+}
+
+/* The default implementation of TARGET_PREFERRED_ELSE_VALUE.  */
+
+tree
+default_preferred_else_value (unsigned, tree type, unsigned, tree *)
+{
+  return build_zero_cst (type);
+}
+
+/* Default implementation of TARGET_HAVE_SPECULATION_SAFE_VALUE.  */
+bool
+default_have_speculation_safe_value (bool active ATTRIBUTE_UNUSED)
+{
+#ifdef HAVE_speculation_barrier
+  return active ? HAVE_speculation_barrier : true;
+#else
+  return false;
+#endif
+}
+/* Alternative implementation of TARGET_HAVE_SPECULATION_SAFE_VALUE
+   that can be used on targets that never have speculative execution.  */
+bool
+speculation_safe_value_not_needed (bool active)
+{
+  return !active;
+}
+
+/* Default implementation of the speculation-safe-load builtin.  This
+   implementation simply copies val to result and generates a
+   speculation_barrier insn, if such a pattern is defined.  */
+rtx
+default_speculation_safe_value (machine_mode mode ATTRIBUTE_UNUSED,
+				rtx result, rtx val,
+				rtx failval ATTRIBUTE_UNUSED)
+{
+  emit_move_insn (result, val);
+
+#ifdef HAVE_speculation_barrier
+  /* Assume the target knows what it is doing: if it defines a
+     speculation barrier, but it is not enabled, then assume that one
+     isn't needed.  */
+  if (HAVE_speculation_barrier)
+    emit_insn (gen_speculation_barrier ());
+#endif
+
+  return result;
 }
 
 #include "gt-targhooks.h"

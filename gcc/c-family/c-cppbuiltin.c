@@ -970,7 +970,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_capture_star_this=201603");
 	  cpp_define (pfile, "__cpp_inline_variables=201606");
 	  cpp_define (pfile, "__cpp_aggregate_bases=201603");
-	  cpp_define (pfile, "__cpp_deduction_guides=201611");
+	  cpp_define (pfile, "__cpp_deduction_guides=201703");
 	  cpp_define (pfile, "__cpp_noexcept_function_type=201510");
 	  cpp_define (pfile, "__cpp_template_auto=201606");
 	  cpp_define (pfile, "__cpp_structured_bindings=201606");
@@ -981,7 +981,7 @@ c_cpp_builtins (cpp_reader *pfile)
       if (flag_tm)
 	/* Use a value smaller than the 201505 specified in
 	   the TS, since we don't yet support atomic_cancel.  */
-	cpp_define (pfile, "__cpp_transactional_memory=210500");
+	cpp_define (pfile, "__cpp_transactional_memory=201500");
       if (flag_sized_deallocation)
 	cpp_define (pfile, "__cpp_sized_deallocation=201309");
       if (aligned_new_threshold)
@@ -1361,7 +1361,12 @@ c_cpp_builtins (cpp_reader *pfile)
     cpp_define (pfile, "__WCHAR_UNSIGNED__");
 
   cpp_atomic_builtins (pfile);
-    
+
+  /* Show support for __builtin_speculation_safe_value () if the target
+     has been updated to fully support it.  */
+  if (targetm.have_speculation_safe_value (false))
+    cpp_define (pfile, "__HAVE_SPECULATION_SAFE_VALUE");
+
 #ifdef DWARF2_UNWIND_INFO
   if (dwarf2out_do_cfi_asm ())
     cpp_define (pfile, "__GCC_HAVE_DWARF2_CFI_ASM");

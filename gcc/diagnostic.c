@@ -175,6 +175,7 @@ diagnostic_initialize (diagnostic_context *context, int n_opts)
   context->lock = 0;
   context->inhibit_notes_p = false;
   context->colorize_source_p = false;
+  context->show_line_numbers_p = false;
   context->show_ruler_p = false;
   context->parseable_fixits_p = false;
   context->edit_context_ptr = NULL;
@@ -587,22 +588,27 @@ diagnostic_report_current_module (diagnostic_context *context, location_t where)
       set_last_module (context, map);
       if (! MAIN_FILE_P (map))
 	{
-	  map = INCLUDED_FROM (line_table, map);
-	  const char *line_col
-	    = maybe_line_and_column (LAST_SOURCE_LINE (map),
-				     context->show_column
-				     ? LAST_SOURCE_COLUMN (map) : 0);
-	  pp_verbatim (context->printer,
-		       "In file included from %r%s%s%R", "locus",
-		       LINEMAP_FILE (map), line_col);
-	  while (! MAIN_FILE_P (map))
+	  bool first = true;
+	  do
 	    {
-	      map = INCLUDED_FROM (line_table, map);
-	      line_col = maybe_line_and_column (LAST_SOURCE_LINE (map), 0);
-	      pp_verbatim (context->printer,
-			   ",\n                 from %r%s%s%R", "locus",
-			   LINEMAP_FILE (map), line_col);
+	      where = linemap_included_from (map);
+	      map = linemap_included_from_linemap (line_table, map);
+	      const char *line_col
+		= maybe_line_and_column (SOURCE_LINE (map, where),
+					 first && context->show_column
+					 ? SOURCE_COLUMN (map, where) : 0);
+	      static const char *const msgs[] =
+		{
+		 N_("In file included from"),
+		 N_("                 from"),
+		};
+	      unsigned index = !first;
+	      pp_verbatim (context->printer, "%s%s %r%s%s%R",
+			   first ? "" : ",\n", _(msgs[index]),
+			   "locus", LINEMAP_FILE (map), line_col);
+	      first = false;
 	    }
+	  while (! MAIN_FILE_P (map));
 	  pp_verbatim (context->printer, ":");
 	  pp_newline (context->printer);
 	}
@@ -1063,7 +1069,6 @@ diagnostic_append_note (diagnostic_context *context,
 {
   diagnostic_info diagnostic;
   va_list ap;
-  const char *saved_prefix;
   rich_location richloc (line_table, location);
 
   va_start (ap, gmsgid);
@@ -1073,7 +1078,7 @@ diagnostic_append_note (diagnostic_context *context,
       va_end (ap);
       return;
     }
-  saved_prefix = pp_get_prefix (context->printer);
+  char *saved_prefix = pp_take_prefix (context->printer);
   pp_set_prefix (context->printer,
                  diagnostic_build_prefix (context, &diagnostic));
   pp_format (context->printer, &diagnostic.message);

@@ -237,7 +237,11 @@ static void
 kill_clobbered_value (rtx x, const_rtx set, void *data)
 {
   struct value_data *const vd = (struct value_data *) data;
-  if (GET_CODE (set) == CLOBBER)
+  gcc_assert (GET_CODE (set) != CLOBBER_HIGH || REG_P (x));
+
+  if (GET_CODE (set) == CLOBBER
+      || (GET_CODE (set) == CLOBBER_HIGH
+	  && reg_is_clobbered_by_clobber_high (x, XEXP (set, 0))))
     kill_value (x, vd);
 }
 
@@ -257,7 +261,9 @@ kill_set_value (rtx x, const_rtx set, void *data)
   struct kill_set_value_data *ksvd = (struct kill_set_value_data *) data;
   if (rtx_equal_p (x, ksvd->ignore_set_reg))
     return;
-  if (GET_CODE (set) != CLOBBER)
+
+  gcc_assert (GET_CODE (set) != CLOBBER_HIGH || REG_P (x));
+  if (GET_CODE (set) != CLOBBER && GET_CODE (set) != CLOBBER_HIGH)
     {
       kill_value (x, ksvd->vd);
       if (REG_P (x))
@@ -848,6 +854,12 @@ copyprop_hardreg_forward_1 (basic_block bb, struct value_data *vd)
 		  && reg_overlap_mentioned_p (XEXP (link, 0), SET_SRC (set)))
 		set = NULL;
 	    }
+
+	  /* We need to keep CFI info correct, and the same on all paths,
+	     so we cannot normally replace the registers REG_CFA_REGISTER
+	     refers to.  Bail.  */
+	  if (REG_NOTE_KIND (link) == REG_CFA_REGISTER)
+	    goto did_replacement;
 	}
 
       /* Special-case plain move instructions, since we may well

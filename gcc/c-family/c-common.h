@@ -808,7 +808,8 @@ extern void check_function_format (tree, int, tree *, vec<location_t> *);
 extern bool attribute_fallthrough_p (tree);
 extern tree handle_format_attribute (tree *, tree, tree, int, bool *);
 extern tree handle_format_arg_attribute (tree *, tree, tree, int, bool *);
-extern bool c_common_handle_option (size_t, const char *, int, int, location_t,
+extern bool c_common_handle_option (size_t, const char *, HOST_WIDE_INT, int,
+				    location_t,
 				    const struct cl_option_handlers *);
 extern bool default_handle_c_option (size_t, const char *, int);
 extern tree c_common_type_for_mode (machine_mode, int);
@@ -1033,8 +1034,8 @@ extern bool c_dump_tree (void *, tree);
 
 extern void verify_sequence_points (tree);
 
-extern tree fold_offsetof_1 (tree, tree_code ctx = ERROR_MARK);
-extern tree fold_offsetof (tree);
+extern tree fold_offsetof (tree, tree = size_type_node,
+			   tree_code ctx = ERROR_MARK);
 
 extern int complete_array_type (tree *, tree, bool);
 
@@ -1248,7 +1249,7 @@ extern tree find_inv_trees (tree *, int *, void *);
 extern tree replace_inv_trees (tree *, int *, void *);
 
 extern bool reject_gcc_builtin (const_tree, location_t = UNKNOWN_LOCATION);
-extern bool valid_array_size_p (location_t, tree, tree);
+extern bool valid_array_size_p (location_t, tree, tree, bool = true);
 
 /* In c-warn.c.  */
 extern void constant_expression_warning (tree);

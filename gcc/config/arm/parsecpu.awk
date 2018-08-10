@@ -21,6 +21,7 @@
 # where <cmd> is one of:
 #	data: Print the standard 'C' data tables for the CPUs
 #	common-data: Print the 'C' data for shared driver/compiler files
+#	native: Print the data structures used by the native driver
 #	headers: Print the standard 'C' headers for the CPUs
 #	isa: Generate the arm-isa.h header
 #	md: Print the machine description fragment
@@ -289,9 +290,6 @@ function gen_comm_data () {
 	    }
 	    all_isa_bits = all_isa_bits " " arch_opt_isa[feats[1],feats[m]]
 	}
-	if (cpus[n] in cpu_fpu) {
-	    all_isa_bits = all_isa_bits " " fpu_isa[cpu_fpu[cpus[n]]]
-	}
 	if (cpus[n] in cpu_isa) {
 	    all_isa_bits = all_isa_bits " " cpu_isa[cpus[n]]
 	}
@@ -394,6 +392,31 @@ function gen_comm_data () {
     print "};"
 }
 
+function gen_native () {
+    boilerplate("C")
+
+    for (vendor in vendor_ids) {
+	print "static struct vendor_cpu vendor"vendor"_cpu_table[] = {"
+	ncpus = split (cpu_list, cpus)
+
+	for (n = 1; n <= ncpus; n++) {
+	    if ((cpus[n] in cpu_vendor) && (cpus[n] in cpu_part)	\
+		&& cpu_vendor[cpus[n]] == vendor) {
+		print "  {\"0x"cpu_part[cpus[n]]"\", \""cpu_arch[cpus[n]]"\", \""cpus[n]"\"},"
+	    }
+	}
+	print "  {NULL, NULL, NULL}"
+	print "};"
+    }
+
+    print "\nstatic struct vendor vendors_table[] = {"
+    for (vendor in vendor_ids) {
+	print "  {\"0x"vendor"\", vendor"vendor"_cpu_table},"
+    }
+    print "  {NULL, NULL}"
+    print "};"
+}
+
 function gen_md () {
     boilerplate("md")
 
@@ -463,7 +486,7 @@ function gen_opt () {
 function check_cpu (name) {
     exts = split (name, extensions, "+")
 
-    if (! extensions[1] in cpu_cnames) {
+    if (! (extensions[1] in cpu_cnames)) {
 	return "error"
     }
 
@@ -477,15 +500,16 @@ function check_cpu (name) {
 }
 
 function check_fpu (name) {
-    if (name in fpu_cnames) {
-	print fpu_cnames[name]
-    } else print "error"
+    if (! (name in fpu_cnames)) {
+	return "error"
+    }
+    return fpu_cnames[name]
 }
 
 function check_arch (name) {
     exts = split (name, extensions, "+")
 
-    if (! extensions[1] in arch_isa) {
+    if (! (extensions[1] in arch_isa)) {
 	return "error"
     }
 
@@ -600,10 +624,10 @@ BEGIN {
 /^end arch / {
     if (NF != 3) fatal("syntax: end arch <name>")
     if (arch_name != $3) fatal("mimatched end arch")
-    if (! arch_name in arch_tune_for) {
+    if (! (arch_name in arch_tune_for)) {
 	fatal("arch definition lacks a \"tune for\" statement")
     }
-    if (! arch_name in arch_isa) {
+    if (! (arch_name in arch_isa)) {
 	fatal("arch definition lacks an \"isa\" statement")
     }
     arch_list = arch_list " " arch_name
@@ -658,13 +682,6 @@ BEGIN {
     if (NF != 2) fatal("syntax: architecture <arch-name>")
     if (cpu_name == "") fatal("\"architecture\" outside of cpu block")
     cpu_arch[cpu_name] = $2
-    parse_ok = 1
-}
-
-/^[ 	]*fpu / {
-    if (NF != 2) fatal("syntax: fpu <fpu-name>")
-    if (cpu_name == "") fatal("\"fpu\" outside of cpu block")
-    cpu_fpu[cpu_name] = $2
     parse_ok = 1
 }
 
@@ -735,6 +752,23 @@ BEGIN {
     parse_ok = 1
 }
 
+/^[ 	]*vendor / {
+    if (NF != 2) fatal("syntax: vendor <vendor-id>")
+    if (cpu_name == "") fatal("\"vendor\" outside of cpu block")
+    cpu_vendor[cpu_name] = $2
+    vendor_ids[$2] = 1
+    parse_ok = 1
+}
+
+/^[ 	]*part / {
+    if (NF < 2 || NF > 4) fatal("syntax: part <part-id> [minrev [maxrev]]")
+    if (cpu_name == "") fatal("\"part\" outside of cpu block")
+    cpu_part[cpu_name] = $2
+    if (NF > 2) cpu_minrev[cpu_name] = $3
+    if (NF == 4) cpu_maxrev[cpu_name] = $4
+    parse_ok = 1
+}
+
 /^end cpu / {
     if (NF != 3) fatal("syntax: end cpu <name>")
     if (cpu_name != $3) fatal("mimatched end cpu")
@@ -742,7 +776,10 @@ BEGIN {
 	cpu_cnames[cpu_name] = cpu_name
 	gsub(/[-+.]/, "_", cpu_cnames[cpu_name])
     }
-    if (! cpu_name in cpu_arch) fatal("cpu definition lacks an architecture")
+    if (! (cpu_name in cpu_arch)) fatal("cpu definition lacks an architecture")
+    if ((cpu_name in cpu_part) && !(cpu_name in cpu_vendor)) {
+	fatal("part number specified for " cpu_name " but no vendor")
+    }
     cpu_list = cpu_list " " cpu_name
     cpu_name = ""
     parse_ok = 1
@@ -760,6 +797,8 @@ END {
 	gen_data()
     } else if (cmd == "common-data") {
 	gen_comm_data()
+    } else if (cmd == "native") {
+	gen_native()
     } else if (cmd == "headers") {
 	gen_headers()
     } else if (cmd == "isa") {
@@ -776,6 +815,6 @@ END {
 	print check_arch(target[2])
     } else if (cmd ~ /^chkfpu /) {
 	split (cmd, target)
-	check_fpu(target[2])
+	print check_fpu(target[2])
     } else fatal("unrecognized command: "cmd)
 }

@@ -827,7 +827,9 @@ c_omp_check_loop_iv_r (tree *tp, int *walk_subtrees, void *data)
     {
       int i;
       for (i = 0; i < TREE_VEC_LENGTH (d->declv); i++)
-	if (*tp == TREE_VEC_ELT (d->declv, i))
+	if (*tp == TREE_VEC_ELT (d->declv, i)
+	    || (TREE_CODE (TREE_VEC_ELT (d->declv, i)) == TREE_LIST
+		&& *tp == TREE_PURPOSE (TREE_VEC_ELT (d->declv, i))))
 	  {
 	    location_t loc = d->expr_loc;
 	    if (loc == UNKNOWN_LOCATION)
@@ -894,7 +896,9 @@ c_omp_check_loop_iv (tree stmt, tree declv, walk_tree_lh lh)
 	 expression then involves the subtraction and always refers
 	 to the original value.  The C++ FE needs to warn on those
 	 earlier.  */
-      if (decl == TREE_VEC_ELT (declv, i))
+      if (decl == TREE_VEC_ELT (declv, i)
+	  || (TREE_CODE (TREE_VEC_ELT (declv, i)) == TREE_LIST
+	      && decl == TREE_PURPOSE (TREE_VEC_ELT (declv, i))))
 	{
 	  data.expr_loc = EXPR_LOCATION (cond);
 	  data.kind = 1;
@@ -1609,6 +1613,14 @@ c_omp_predetermined_sharing (tree decl)
   /* Variables with const-qualified type having no mutable member
      are predetermined shared.  */
   if (TREE_READONLY (decl))
+    return OMP_CLAUSE_DEFAULT_SHARED;
+
+  /* Predetermine artificial variables holding integral values, those
+     are usually result of gimplify_one_sizepos or SAVE_EXPR
+     gimplification.  */
+  if (VAR_P (decl)
+      && DECL_ARTIFICIAL (decl)
+      && INTEGRAL_TYPE_P (TREE_TYPE (decl)))
     return OMP_CLAUSE_DEFAULT_SHARED;
 
   return OMP_CLAUSE_DEFAULT_UNSPECIFIED;
