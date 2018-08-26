@@ -70,7 +70,7 @@ static void push_local_name (tree);
 static tree grok_reference_init (tree, tree, tree, int);
 static tree grokvardecl (tree, tree, tree, const cp_decl_specifier_seq *,
 			 int, int, int, bool, int, tree);
-static int check_static_variable_definition (tree, tree);
+static void check_static_variable_definition (tree, tree);
 static void record_unknown_type (tree, const char *);
 static tree builtin_function_1 (tree, tree, bool);
 static int member_function_or_else (tree, tree, enum overload_flags);
@@ -1133,6 +1133,7 @@ warn_extern_redeclared_static (tree newdecl, tree olddecl)
       && DECL_ARTIFICIAL (olddecl))
     return;
 
+  auto_diagnostic_group d;
   if (permerror (DECL_SOURCE_LOCATION (newdecl),
 		 "%qD was declared %<extern%> and later %<static%>", newdecl))
     inform (DECL_SOURCE_LOCATION (olddecl),
@@ -1176,6 +1177,7 @@ check_redeclaration_exception_specification (tree new_decl,
 	= G_("declaration of %qF has a different exception specifier");
       bool complained = true;
       location_t new_loc = DECL_SOURCE_LOCATION (new_decl);
+      auto_diagnostic_group d;
       if (DECL_IN_SYSTEM_HEADER (old_decl))
 	complained = pedwarn (new_loc, OPT_Wsystem_headers, msg, new_decl);
       else if (!flag_exceptions)
@@ -1304,6 +1306,7 @@ check_no_redeclaration_friend_default_args (tree olddecl, tree newdecl,
     if ((olddecl_hidden_friend_p && TREE_PURPOSE (t1))
 	|| (DECL_FRIEND_P (newdecl) && TREE_PURPOSE (t2)))
       {
+	auto_diagnostic_group d;
 	if (permerror (DECL_SOURCE_LOCATION (newdecl),
 		       "friend declaration of %q#D specifies default "
 		       "arguments and isn't the only declaration", newdecl))
@@ -1555,6 +1558,7 @@ next_arg:;
 				    "declaration %q#D", newdecl, olddecl);
 			  return error_mark_node;
 			}
+		      auto_diagnostic_group d;
 		      if (permerror (newdecl_loc,
 				     "new declaration %q#D ambiguates built-in"
 				     " declaration %q#D", newdecl, olddecl)
@@ -1801,6 +1805,7 @@ next_arg:;
       const char *errmsg = redeclaration_error_message (newdecl, olddecl);
       if (errmsg)
 	{
+	  auto_diagnostic_group d;
 	  error_at (newdecl_loc, errmsg, newdecl);
 	  if (DECL_NAME (olddecl) != NULL_TREE)
 	    inform (olddecl_loc,
@@ -1815,6 +1820,7 @@ next_arg:;
 	       && prototype_p (TREE_TYPE (newdecl)))
 	{
 	  /* Prototype decl follows defn w/o prototype.  */
+	  auto_diagnostic_group d;
 	  if (warning_at (newdecl_loc, 0,
 			  "prototype specified for %q#D", newdecl))
 	    inform (olddecl_loc,
@@ -1856,6 +1862,7 @@ next_arg:;
 	    }
 	  else
 	    {
+	      auto_diagnostic_group d;
 	      error_at (newdecl_loc,
 			"conflicting declaration of %q#D with %qL linkage",
 			newdecl, DECL_LANGUAGE (newdecl));
@@ -1893,6 +1900,7 @@ next_arg:;
 		    if (simple_cst_equal (TREE_PURPOSE (t1),
 					  TREE_PURPOSE (t2)) == 1)
 		      {
+			auto_diagnostic_group d;
 			if (permerror (newdecl_loc,
 				       "default argument given for parameter "
 				       "%d of %q#D", i, newdecl))
@@ -1902,6 +1910,7 @@ next_arg:;
 		      }
 		    else
 		      {
+			auto_diagnostic_group d;
 			error_at (newdecl_loc,
 				  "default argument given for parameter %d "
 				  "of %q#D", i, newdecl);
@@ -1977,6 +1986,7 @@ next_arg:;
 	  && (! DECL_TEMPLATE_SPECIALIZATION (newdecl)
 	      || DECL_TEMPLATE_SPECIALIZATION (olddecl)))
 	{
+	  auto_diagnostic_group d;
 	  if (warning_at (newdecl_loc,
 			  OPT_Wredundant_decls,
 			  "redundant redeclaration of %qD in same scope",
@@ -1990,6 +2000,7 @@ next_arg:;
 	{
 	  if (DECL_DELETED_FN (newdecl))
 	    {
+	      auto_diagnostic_group d;
 	      error_at (newdecl_loc, "deleted definition of %qD", newdecl);
 	      inform (olddecl_loc,
 		      "previous declaration of %qD", olddecl);
@@ -2567,6 +2578,7 @@ next_arg:;
       && DECL_VISIBILITY_SPECIFIED (newdecl)
       && DECL_VISIBILITY (newdecl) != DECL_VISIBILITY (olddecl))
     {
+      auto_diagnostic_group d;
       if (warning_at (newdecl_loc, OPT_Wattributes,
 		      "%qD: visibility attribute ignored because it "
 		      "conflicts with previous declaration", newdecl))
@@ -2986,12 +2998,15 @@ redeclaration_error_message (tree newdecl, tree olddecl)
 	{
 	  DECL_EXTERNAL (newdecl) = 1;
 	  /* For now, only warn with explicit -Wdeprecated.  */
-	  if (global_options_set.x_warn_deprecated
-	      && warning_at (DECL_SOURCE_LOCATION (newdecl), OPT_Wdeprecated,
-			     "redundant redeclaration of %<constexpr%> static "
-			     "data member %qD", newdecl))
-	    inform (DECL_SOURCE_LOCATION (olddecl),
-		    "previous declaration of %qD", olddecl);
+	  if (global_options_set.x_warn_deprecated)
+	    {
+	      auto_diagnostic_group d;
+	      if (warning_at (DECL_SOURCE_LOCATION (newdecl), OPT_Wdeprecated,
+				"redundant redeclaration of %<constexpr%> "
+				"static data member %qD", newdecl))
+		inform (DECL_SOURCE_LOCATION (olddecl),
+			  "previous declaration of %qD", olddecl);
+	    }
 	  return NULL;
 	}
 
@@ -3191,7 +3206,8 @@ check_previous_goto_1 (tree decl, cp_binding_level* level, tree names,
 	  if (!identified)
 	    {
 	      complained = identify_goto (decl, input_location, locus,
-					  DK_PERMERROR);
+					  problem > 1
+					  ? DK_ERROR : DK_PERMERROR);
 	      identified = 1;
 	    }
 	  if (complained)
@@ -4752,6 +4768,7 @@ warn_misplaced_attr_for_class_type (source_location location,
 {
   gcc_assert (OVERLOAD_TYPE_P (class_type));
 
+  auto_diagnostic_group d;
   if (warning_at (location, OPT_Wattributes,
 		  "attribute ignored in declaration "
 		  "of %q#T", class_type))
@@ -6282,6 +6299,30 @@ build_aggr_init_full_exprs (tree decl, tree init, int flags)
   return build_aggr_init (decl, init, flags, tf_warning_or_error);
 }
 
+/* Attempt to determine the constant VALUE of integral type and convert
+   it to TYPE, issuing narrowing warnings/errors as necessary.  Return
+   the constant result or null on failure.  Callback for
+   braced_list_to_string.  */
+
+static tree
+eval_check_narrowing (tree type, tree value)
+{
+  if (tree valtype = TREE_TYPE (value))
+    {
+      if (TREE_CODE (valtype) != INTEGER_TYPE)
+	return NULL_TREE;
+    }
+  else
+    return NULL_TREE;
+
+  value = scalar_constant_value (value);
+  if (!value)
+    return NULL_TREE;
+
+  check_narrowing (type, value, tf_warning_or_error);
+  return value;
+}
+
 /* Verify INIT (the initializer for DECL), and record the
    initialization in DECL_INITIAL, if appropriate.  CLEANUP is as for
    grok_reference_init.
@@ -6397,7 +6438,17 @@ check_initializer (tree decl, tree init, int flags, vec<tree, va_gc> **cleanups)
 	    }
 	  else
 	    {
-	      init = reshape_init (type, init, tf_warning_or_error);
+	      /* Try to convert a string CONSTRUCTOR into a STRING_CST.  */
+	      tree valtype = TREE_TYPE (decl);
+	      if (TREE_CODE (valtype) == ARRAY_TYPE
+		  && TYPE_STRING_FLAG (TREE_TYPE (valtype))
+		  && BRACE_ENCLOSED_INITIALIZER_P (init))
+		if (tree str = braced_list_to_string (valtype, init,
+						      eval_check_narrowing))
+		  init = str;
+
+	      if (TREE_CODE (init) != STRING_CST)
+		init = reshape_init (type, init, tf_warning_or_error);
 	      flags |= LOOKUP_NO_NARROWING;
 	    }
 	}
@@ -9480,25 +9531,24 @@ build_ptrmem_type (tree class_type, tree member_type)
 
 /* DECL is a VAR_DECL defined in-class, whose TYPE is also given.
    Check to see that the definition is valid.  Issue appropriate error
-   messages.  Return 1 if the definition is particularly bad, or 0
-   otherwise.  */
+   messages.  */
 
-static int
+static void
 check_static_variable_definition (tree decl, tree type)
 {
   /* Avoid redundant diagnostics on out-of-class definitions.  */
   if (!current_class_type || !TYPE_BEING_DEFINED (current_class_type))
-    return 0;
+    ;
   /* Can't check yet if we don't know the type.  */
-  if (dependent_type_p (type))
-    return 0;
+  else if (dependent_type_p (type))
+    ;
   /* If DECL is declared constexpr, we'll do the appropriate checks
      in check_initializer.  Similarly for inline static data members.  */
-  if (DECL_P (decl)
+  else if (DECL_P (decl)
       && (DECL_DECLARED_CONSTEXPR_P (decl)
 	  || undeduced_auto_decl (decl)
 	  || DECL_VAR_DECLARED_INLINE_P (decl)))
-    return 0;
+    ;
   else if (cxx_dialect >= cxx11 && !INTEGRAL_OR_ENUMERATION_TYPE_P (type))
     {
       if (!COMPLETE_TYPE_P (type))
@@ -9513,23 +9563,18 @@ check_static_variable_definition (tree decl, tree type)
 	error_at (DECL_SOURCE_LOCATION (decl),
 		  "in-class initialization of static data member %q#D of "
 		  "non-literal type", decl);
-      return 1;
     }
-
   /* Motion 10 at San Diego: If a static const integral data member is
      initialized with an integral constant expression, the initializer
      may appear either in the declaration (within the class), or in
      the definition, but not both.  If it appears in the class, the
      member is a member constant.  The file-scope definition is always
      required.  */
-  if (!ARITHMETIC_TYPE_P (type) && TREE_CODE (type) != ENUMERAL_TYPE)
-    {
-      error_at (DECL_SOURCE_LOCATION (decl),
-		"invalid in-class initialization of static data member "
-		"of non-integral type %qT",
-		type);
-      return 1;
-    }
+  else if (!ARITHMETIC_TYPE_P (type) && TREE_CODE (type) != ENUMERAL_TYPE)
+    error_at (DECL_SOURCE_LOCATION (decl),
+	      "invalid in-class initialization of static data member "
+	      "of non-integral type %qT",
+	      type);
   else if (!CP_TYPE_CONST_P (type))
     error_at (DECL_SOURCE_LOCATION (decl),
 	      "ISO C++ forbids in-class initialization of non-const "
@@ -9539,8 +9584,6 @@ check_static_variable_definition (tree decl, tree type)
     pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wpedantic,
 	     "ISO C++ forbids initialization of member constant "
 	     "%qD of non-integral type %qT", decl, type);
-
-  return 0;
 }
 
 /* *expr_p is part of the TYPE_SIZE of a variably-sized array.  If any
@@ -9668,7 +9711,7 @@ compute_array_index_type (tree name, tree size, tsubst_flags_t complain)
     {
       tree folded = cp_fully_fold (size);
       if (TREE_CODE (folded) == INTEGER_CST)
-	pedwarn (location_of (size), OPT_Wpedantic,
+	pedwarn (input_location, OPT_Wpedantic,
 		 "size of array is not an integral constant-expression");
       /* Use the folded result for VLAs, too; it will have resolved
 	 SIZEOF_EXPR.  */
@@ -9838,7 +9881,10 @@ create_array_type_for_decl (tree name, tree type, tree size)
      type-specifier, the program is ill-formed.  */
   if (type_uses_auto (type))
     {
-      error ("%qD declared as array of %qT", name, type);
+      if (name)
+   error ("%qD declared as array of %qT", name, type);
+      else
+   error ("creating array of %qT", type);
       return error_mark_node;
     }
 
@@ -11200,7 +11246,10 @@ grokdeclarator (const cp_declarator *declarator,
 
 	    /* Handle a late-specified return type.  */
 	    tree late_return_type = declarator->u.function.late_return_type;
-	    if (funcdecl_p)
+	    if (funcdecl_p
+		/* This is the case e.g. for
+		   using T = auto () -> int.  */
+		|| inner_declarator == NULL)
 	      {
 		if (tree auto_node = type_uses_auto (type))
 		  {
@@ -11230,6 +11279,16 @@ grokdeclarator (const cp_declarator *declarator,
 			error ("%qs function with trailing return type has"
 			       " %qT as its type rather than plain %<auto%>",
 			       name, type);
+			return error_mark_node;
+		      }
+		    else if (is_auto (type) && AUTO_IS_DECLTYPE (type))
+		      {
+			if (funcdecl_p)
+			  error ("%qs function with trailing return type has "
+				 "%<decltype(auto)%> as its type rather than "
+				 "plain %<auto%>", name);
+			else
+			  error ("invalid use of %<decltype(auto)%>");
 			return error_mark_node;
 		      }
 		    tree tmpl = CLASS_PLACEHOLDER_TEMPLATE (auto_node);

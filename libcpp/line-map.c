@@ -304,6 +304,8 @@ pure_location_p (line_maps *set, source_location loc)
     return false;
 
   const line_map *map = linemap_lookup (set, loc);
+  if (map == NULL)
+    return true;
   const line_map_ordinary *ordmap = linemap_check_ordinary (map);
 
   if (loc & ((1U << ordmap->m_range_bits) - 1))
@@ -492,6 +494,11 @@ linemap_add (struct line_maps *set, enum lc_reason reason,
     }
 
   linemap_assert (reason != LC_ENTER_MACRO);
+
+  if (start_location >= LINE_MAP_MAX_LOCATION)
+    /* We ran out of line map space.   */
+    start_location = 0;
+
   line_map_ordinary *map
     = linemap_check_ordinary (new_linemap (set, start_location));
   map->reason = reason;
@@ -1988,7 +1995,8 @@ line_table_dump (FILE *stream, struct line_maps *set, unsigned int num_ordinary,
 
 /* Construct a rich_location with location LOC as its initial range.  */
 
-rich_location::rich_location (line_maps *set, source_location loc) :
+rich_location::rich_location (line_maps *set, source_location loc,
+			      const range_label *label) :
   m_line_table (set),
   m_ranges (),
   m_column_override (0),
@@ -1997,7 +2005,7 @@ rich_location::rich_location (line_maps *set, source_location loc) :
   m_seen_impossible_fixit (false),
   m_fixits_cannot_be_auto_applied (false)
 {
-  add_range (loc, true);
+  add_range (loc, true, label);
 }
 
 /* The destructor for class rich_location.  */
@@ -2073,11 +2081,13 @@ rich_location::override_column (int column)
 /* Add the given range.  */
 
 void
-rich_location::add_range (source_location loc, bool show_caret_p)
+rich_location::add_range (source_location loc, bool show_caret_p,
+			  const range_label *label)
 {
   location_range range;
   range.m_loc = loc;
   range.m_show_caret_p = show_caret_p;
+  range.m_label = label;
   m_ranges.push (range);
 }
 

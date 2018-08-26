@@ -3656,7 +3656,7 @@ struct GTY(()) lang_decl {
   (LANG_DECL_FN_CHECK (FUNCTION_DECL_CHECK (NODE))	\
    ->u.saved_language_function)
 
-/* True if NODE is an implicit INDIRECT_EXPR from convert_from_reference.  */
+/* True if NODE is an implicit INDIRECT_REF from convert_from_reference.  */
 #define REFERENCE_REF_P(NODE)				\
   (INDIRECT_REF_P (NODE)				\
    && TREE_TYPE (TREE_OPERAND (NODE, 0))		\
@@ -7397,7 +7397,8 @@ extern int abstract_virtuals_error_sfinae	(abstract_class_use, tree, tsubst_flag
 
 extern tree store_init_value			(tree, tree, vec<tree, va_gc>**, int);
 extern tree split_nonconstant_init		(tree, tree);
-extern bool check_narrowing			(tree, tree, tsubst_flags_t);
+extern bool check_narrowing			(tree, tree, tsubst_flags_t,
+						 bool = false);
 extern tree digest_init				(tree, tree, tsubst_flags_t);
 extern tree digest_init_flags			(tree, tree, int, tsubst_flags_t);
 extern tree digest_nsdmi_init		        (tree, tree, tsubst_flags_t);
