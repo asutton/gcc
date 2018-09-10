@@ -102,10 +102,10 @@ struct conversion {
   BOOL_BITFIELD base_p : 1;
   /* If KIND is ck_ref_bind, true when either an lvalue reference is
      being bound to an lvalue expression or an rvalue reference is
-     being bound to an rvalue expression.  If KIND is ck_rvalue,
+     being bound to an rvalue expression.  If KIND is ck_rvalue or ck_base,
      true when we are treating an lvalue as an rvalue (12.8p33).  If
-     KIND is ck_base, always false.  If ck_identity, we will be
-     binding a reference directly or decaying to a pointer.  */
+     ck_identity, we will be binding a reference directly or decaying to
+     a pointer.  */
   BOOL_BITFIELD rvaluedness_matches_p: 1;
   BOOL_BITFIELD check_narrowing: 1;
   /* Whether check_narrowing should only check TREE_CONSTANTs; used
@@ -389,7 +389,7 @@ build_call_a (tree function, int n, tree *argarray)
   /* Don't pass empty class objects by value.  This is useful
      for tags in STL, which are used to control overload resolution.
      We don't need to handle other cases of copying empty classes.  */
-  if (! decl || ! DECL_BUILT_IN (decl))
+  if (!decl || !fndecl_built_in_p (decl))
     for (i = 0; i < n; i++)
       {
 	tree arg = CALL_EXPR_ARG (function, i);
@@ -1425,6 +1425,9 @@ standard_conversion (tree to, tree from, tree expr, bool c_cast_p,
 	 type.  A temporary object is created to hold the result of
 	 the conversion unless we're binding directly to a reference.  */
       conv->need_temporary_p = !(flags & LOOKUP_NO_TEMP_BIND);
+      if (flags & LOOKUP_PREFER_RVALUE)
+	/* Tell convert_like_real to set LOOKUP_PREFER_RVALUE.  */
+	conv->rvaluedness_matches_p = true;
     }
   else
     return NULL;
@@ -3432,10 +3435,11 @@ equal_functions (tree fn1, tree fn2)
   return fn1 == fn2;
 }
 
-/* Print information about a candidate being rejected due to INFO.  */
+/* Print information about a candidate FN being rejected due to INFO.  */
 
 static void
-print_conversion_rejection (location_t loc, struct conversion_info *info)
+print_conversion_rejection (location_t loc, struct conversion_info *info,
+			    tree fn)
 {
   tree from = info->from;
   if (!TYPE_P (from))
@@ -3466,8 +3470,12 @@ print_conversion_rejection (location_t loc, struct conversion_info *info)
     inform (loc, "  no known conversion from %qH to %qI",
 	    from, info->to_type);
   else
-    inform (loc, "  no known conversion for argument %d from %qH to %qI",
-	    info->n_arg + 1, from, info->to_type);
+    {
+      if (TREE_CODE (fn) == FUNCTION_DECL)
+	loc = get_fndecl_argument_location (fn, info->n_arg);
+      inform (loc, "  no known conversion for argument %d from %qH to %qI",
+	      info->n_arg + 1, from, info->to_type);
+    }
 }
 
 /* Print information about a candidate with WANT parameters and we found
@@ -3542,10 +3550,10 @@ print_z_candidate (location_t loc, const char *msgstr,
 				   r->u.arity.expected);
 	  break;
 	case rr_arg_conversion:
-	  print_conversion_rejection (cloc, &r->u.conversion);
+	  print_conversion_rejection (cloc, &r->u.conversion, fn);
 	  break;
 	case rr_bad_arg_conversion:
-	  print_conversion_rejection (cloc, &r->u.bad_conversion);
+	  print_conversion_rejection (cloc, &r->u.bad_conversion, fn);
 	  break;
 	case rr_explicit_conversion:
 	  inform (cloc, "  return type %qT of explicit conversion function "
@@ -3966,7 +3974,7 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags,
     }
 
   cand = tourney (candidates, complain);
-  if (cand == 0)
+  if (cand == NULL)
     {
       if (complain & tf_error)
 	{
@@ -4008,6 +4016,12 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags,
   conv->cand = cand;
   if (cand->viable == -1)
     conv->bad_p = true;
+
+  /* We're performing the maybe-rvalue overload resolution and
+     a conversion function is in play.  This isn't going to work
+     because we would not end up with a suitable constructor.  */
+  if ((flags & LOOKUP_PREFER_RVALUE) && !DECL_CONSTRUCTOR_P (cand->fn))
+    return NULL;
 
   /* Remember that this was a list-initialization.  */
   if (flags & LOOKUP_NO_NARROWING)
@@ -7922,7 +7936,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	{
 	  /* The implicit move specified in 15.8.3/3 fails "...if the type of
 	     the first parameter of the selected constructor is not an rvalue
-	     reference to the object’s type (possibly cv-qualified)...." */
+	     reference to the object's type (possibly cv-qualified)...." */
 	  gcc_assert (!(complain & tf_error));
 	  tree ptype = convs[0]->type;
 	  if (!TYPE_REF_P (ptype)
@@ -8869,8 +8883,7 @@ build_cxx_call (tree fn, int nargs, tree *argarray,
   /* Check that arguments to builtin functions match the expectations.  */
   if (fndecl
       && !processing_template_decl
-      && DECL_BUILT_IN (fndecl)
-      && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL)
+      && fndecl_built_in_p (fndecl, BUILT_IN_NORMAL))
     {
       int i;
 

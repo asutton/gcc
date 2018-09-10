@@ -408,6 +408,10 @@ static vector<source_info> sources;
 /* Mapping of file names to sources */
 static vector<name_map> names;
 
+/* Record all processed files in order to warn about
+   a file being read multiple times.  */
+static vector<char *> processed_files;
+
 /* This holds data summary information.  */
 
 static unsigned object_runs;
@@ -1146,6 +1150,17 @@ static void
 process_file (const char *file_name)
 {
   create_file_names (file_name);
+
+  for (unsigned i = 0; i < processed_files.size (); i++)
+    if (strcmp (da_file_name, processed_files[i]) == 0)
+      {
+	fnotice (stderr, "'%s' file is already processed\n",
+		 file_name);
+	return;
+      }
+
+  processed_files.push_back (xstrdup (da_file_name));
+
   read_graph_file ();
   read_count_file ();
 }
@@ -2201,8 +2216,8 @@ format_count (gcov_type count)
       if (count + divisor / 2 < 1000 * divisor)
 	break;
     }
-  gcov_type r  = (count + divisor / 2) / divisor;
-  sprintf (buffer, "%" PRId64 "%c", r, units[i]);
+  float r = 1.0f * count / divisor;
+  sprintf (buffer, "%.1f%c", r, units[i]);
   return buffer;
 }
 

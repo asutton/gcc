@@ -78,48 +78,6 @@
 /* Defined for convenience.  */
 #define POINTER_BYTES (POINTER_SIZE / BITS_PER_UNIT)
 
-/* Classifies an address.
-
-   ADDRESS_REG_IMM
-       A simple base register plus immediate offset.
-
-   ADDRESS_REG_WB
-       A base register indexed by immediate offset with writeback.
-
-   ADDRESS_REG_REG
-       A base register indexed by (optionally scaled) register.
-
-   ADDRESS_REG_UXTW
-       A base register indexed by (optionally scaled) zero-extended register.
-
-   ADDRESS_REG_SXTW
-       A base register indexed by (optionally scaled) sign-extended register.
-
-   ADDRESS_LO_SUM
-       A LO_SUM rtx with a base register and "LO12" symbol relocation.
-
-   ADDRESS_SYMBOLIC:
-       A constant symbolic address, in pc-relative literal pool.  */
-
-enum aarch64_address_type {
-  ADDRESS_REG_IMM,
-  ADDRESS_REG_WB,
-  ADDRESS_REG_REG,
-  ADDRESS_REG_UXTW,
-  ADDRESS_REG_SXTW,
-  ADDRESS_LO_SUM,
-  ADDRESS_SYMBOLIC
-};
-
-struct aarch64_address_info {
-  enum aarch64_address_type type;
-  rtx base;
-  rtx offset;
-  poly_int64 const_offset;
-  int shift;
-  enum aarch64_symbol_type symbol_type;
-};
-
 /* Information about a legitimate vector immediate operand.  */
 struct simd_immediate_info
 {
@@ -927,7 +885,7 @@ static const struct tune_params qdf24xx_tunings =
   2,	/* min_div_recip_mul_df.  */
   0,	/* max_case_values.  */
   tune_params::AUTOPREFETCHER_WEAK,	/* autoprefetcher_model.  */
-  (AARCH64_EXTRA_TUNE_NONE),		/* tune_flags.  */
+  AARCH64_EXTRA_TUNE_RENAME_LOAD_REGS, /* tune_flags.  */
   &qdf24xx_prefetch_tune
 };
 
@@ -5671,10 +5629,10 @@ virt_or_elim_regno_p (unsigned regno)
    If it is, fill in INFO appropriately.  STRICT_P is true if
    REG_OK_STRICT is in effect.  */
 
-static bool
+bool
 aarch64_classify_address (struct aarch64_address_info *info,
 			  rtx x, machine_mode mode, bool strict_p,
-			  aarch64_addr_query_type type = ADDR_QUERY_M)
+			  aarch64_addr_query_type type)
 {
   enum rtx_code code = GET_CODE (x);
   rtx op0, op1;
@@ -10556,6 +10514,13 @@ aarch64_override_options_internal (struct gcc_options *opts)
       && aarch64_tune_params.prefetch->default_opt_level >= 0
       && opts->x_optimize >= aarch64_tune_params.prefetch->default_opt_level)
     opts->x_flag_prefetch_loop_arrays = 1;
+
+  if (opts->x_aarch64_arch_string == NULL)
+    opts->x_aarch64_arch_string = selected_arch->name;
+  if (opts->x_aarch64_cpu_string == NULL)
+    opts->x_aarch64_cpu_string = selected_cpu->name;
+  if (opts->x_aarch64_tune_string == NULL)
+    opts->x_aarch64_tune_string = selected_tune->name;
 
   aarch64_override_options_after_change_1 (opts);
 }
@@ -15931,13 +15896,17 @@ aarch64_expand_movmem (rtx *operands)
   /* Convert n to bits to make the rest of the code simpler.  */
   n = n * BITS_PER_UNIT;
 
+  /* Maximum amount to copy in one go.  The AArch64 back-end has integer modes
+     larger than TImode, but we should not use them for loads/stores here.  */
+  const int copy_limit = GET_MODE_BITSIZE (TImode);
+
   while (n > 0)
     {
       /* Find the largest mode in which to do the copy in without over reading
 	 or writing.  */
       opt_scalar_int_mode mode_iter;
       FOR_EACH_MODE_IN_CLASS (mode_iter, MODE_INT)
-	if (GET_MODE_BITSIZE (mode_iter.require ()) <= n)
+	if (GET_MODE_BITSIZE (mode_iter.require ()) <= MIN (n, copy_limit))
 	  cur_mode = mode_iter.require ();
 
       gcc_assert (cur_mode != BLKmode);
@@ -15951,10 +15920,10 @@ aarch64_expand_movmem (rtx *operands)
 	 cheaper.  i.e. less instructions to do so.  For instance doing a 15
 	 byte copy it's more efficient to do two overlapping 8 byte copies than
 	 8 + 6 + 1.  */
-      next_mode = smallest_mode_for_size (n, MODE_INT);
-      int n_bits = GET_MODE_BITSIZE (next_mode).to_constant ();
-      if (n > 0 && n_bits > n && n_bits <= 8 * BITS_PER_UNIT)
+      if (n > 0 && n <= 8 * BITS_PER_UNIT)
 	{
+	  next_mode = smallest_mode_for_size (n, MODE_INT);
+	  int n_bits = GET_MODE_BITSIZE (next_mode).to_constant ();
 	  src = aarch64_move_pointer (src, (n - n_bits) / BITS_PER_UNIT);
 	  dst = aarch64_move_pointer (dst, (n - n_bits) / BITS_PER_UNIT);
 	  n = n_bits;

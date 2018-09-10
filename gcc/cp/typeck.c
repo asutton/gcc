@@ -63,6 +63,8 @@ static tree lookup_destructor (tree, tree, tree, tsubst_flags_t);
 static void error_args_num (location_t, tree, bool);
 static int convert_arguments (tree, vec<tree, va_gc> **, tree, int,
                               tsubst_flags_t);
+static bool is_std_move_p (tree);
+static bool is_std_forward_p (tree);
 
 /* Do `exp = require_complete_type (exp);' to make sure exp
    does not have an incomplete type.  (That includes void types.)
@@ -6228,9 +6230,10 @@ cp_build_unary_op (enum tree_code code, tree xarg, bool noconvert,
 	  || TREE_READONLY (arg)) 
         {
           if (complain & tf_error)
-            cxx_readonly_error (arg, ((code == PREINCREMENT_EXPR
-				      || code == POSTINCREMENT_EXPR)
-				     ? lv_increment : lv_decrement));
+	    cxx_readonly_error (location, arg,
+				((code == PREINCREMENT_EXPR
+				  || code == POSTINCREMENT_EXPR)
+				 ? lv_increment : lv_decrement));
           else
             return error_mark_node;
         }
@@ -8159,7 +8162,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	      && C_TYPE_FIELDS_READONLY (lhstype))))
     {
       if (complain & tf_error)
-	cxx_readonly_error (lhs, lv_assign);
+	cxx_readonly_error (loc, lhs, lv_assign);
       return error_mark_node;
     }
 
@@ -9070,6 +9073,15 @@ maybe_warn_about_returning_address_of_local (tree retval)
       STRIP_NOPS (whats_returned);
     }
 
+  /* As a special case, we handle a call to std::move or std::forward.  */
+  if (TREE_CODE (whats_returned) == CALL_EXPR
+      && (is_std_move_p (whats_returned)
+	  || is_std_forward_p (whats_returned)))
+    {
+      tree arg = CALL_EXPR_ARG (whats_returned, 0);
+      return maybe_warn_about_returning_address_of_local (arg);
+    }
+
   if (TREE_CODE (whats_returned) != ADDR_EXPR)
     return false;
   whats_returned = TREE_OPERAND (whats_returned, 0);
@@ -9135,6 +9147,23 @@ decl_in_std_namespace_p (tree decl)
 	  && DECL_NAMESPACE_STD_P (decl_namespace_context (decl)));
 }
 
+/* Returns true if FN, a CALL_EXPR, is a call to std::forward.  */
+
+static bool
+is_std_forward_p (tree fn)
+{
+  /* std::forward only takes one argument.  */
+  if (call_expr_nargs (fn) != 1)
+    return false;
+
+  tree fndecl = cp_get_callee_fndecl_nofold (fn);
+  if (!decl_in_std_namespace_p (fndecl))
+    return false;
+
+  tree name = DECL_NAME (fndecl);
+  return name && id_equal (name, "forward");
+}
+
 /* Returns true if FN, a CALL_EXPR, is a call to std::move.  */
 
 static bool
@@ -9178,6 +9207,20 @@ can_do_nrvo_p (tree retval, tree functype)
 	  && !TYPE_VOLATILE (TREE_TYPE (retval)));
 }
 
+/* Returns true if we should treat RETVAL, an expression being returned,
+   as if it were designated by an rvalue.  See [class.copy.elision].
+   PARM_P is true if a function parameter is OK in this context.  */
+
+bool
+treat_lvalue_as_rvalue_p (tree retval, bool parm_ok)
+{
+  return ((cxx_dialect != cxx98)
+	  && ((VAR_P (retval) && !DECL_HAS_VALUE_EXPR_P (retval))
+	      || (parm_ok && TREE_CODE (retval) == PARM_DECL))
+	  && DECL_CONTEXT (retval) == current_function_decl
+	  && !TREE_STATIC (retval));
+}
+
 /* Warn about wrong usage of std::move in a return statement.  RETVAL
    is the expression we are returning; FUNCTYPE is the type the function
    is declared to return.  */
@@ -9185,11 +9228,18 @@ can_do_nrvo_p (tree retval, tree functype)
 static void
 maybe_warn_pessimizing_move (tree retval, tree functype)
 {
-  if (!warn_pessimizing_move)
+  if (!(warn_pessimizing_move || warn_redundant_move))
     return;
+
+  location_t loc = cp_expr_loc_or_loc (retval, input_location);
 
   /* C++98 doesn't know move.  */
   if (cxx_dialect < cxx11)
+    return;
+
+  /* Wait until instantiation time, since we can't gauge if we should do
+     the NRVO until then.  */
+  if (processing_template_decl)
     return;
 
   /* This is only interesting for class types.  */
@@ -9207,14 +9257,24 @@ maybe_warn_pessimizing_move (tree retval, tree functype)
 	  STRIP_NOPS (arg);
 	  if (TREE_CODE (arg) == ADDR_EXPR)
 	    arg = TREE_OPERAND (arg, 0);
+	  arg = convert_from_reference (arg);
 	  /* Warn if we could do copy elision were it not for the move.  */
 	  if (can_do_nrvo_p (arg, functype))
 	    {
 	      auto_diagnostic_group d;
-	      if (warning_at (location_of (retval), OPT_Wpessimizing_move,
+	      if (warning_at (loc, OPT_Wpessimizing_move,
 			      "moving a local object in a return statement "
 			      "prevents copy elision"))
-		inform (location_of (retval), "remove %<std::move%> call");
+		inform (loc, "remove %<std::move%> call");
+	    }
+	  /* Warn if the move is redundant.  It is redundant when we would
+	     do maybe-rvalue overload resolution even without std::move.  */
+	  else if (treat_lvalue_as_rvalue_p (arg, /*parm_ok*/true))
+	    {
+	      auto_diagnostic_group d;
+	      if (warning_at (loc, OPT_Wredundant_move,
+			      "redundant move in return statement"))
+		inform (loc, "remove %<std::move%> call");
 	    }
 	}
     }
@@ -9494,11 +9554,7 @@ check_return_expr (tree retval, bool *no_warning)
          Note that these conditions are similar to, but not as strict as,
 	 the conditions for the named return value optimization.  */
       bool converted = false;
-      if ((cxx_dialect != cxx98)
-          && ((VAR_P (retval) && !DECL_HAS_VALUE_EXPR_P (retval))
-	      || TREE_CODE (retval) == PARM_DECL)
-	  && DECL_CONTEXT (retval) == current_function_decl
-	  && !TREE_STATIC (retval)
+      if (treat_lvalue_as_rvalue_p (retval, /*parm_ok*/true)
 	  /* This is only interesting for class type.  */
 	  && CLASS_TYPE_P (functype))
 	{

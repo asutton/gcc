@@ -1,3 +1,18 @@
+2018-09-07  Janne Blomqvist  <jb@gcc.gnu.org>
+
+	* runtime/environ.c (init_unsigned_integer): Remove.
+
+2018-09-05  Hans-Peter Nilsson  <hp@axis.com>
+
+	* io/async.h: Use __gthread_mutex_t, not pthread_mutex_t.
+
+2018-09-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* io/io.h: Change declaration of vlist type to
+	gfc_full_array_i4 to eliminate warning for mismatched type.
+	* io/format.c ((parse_format_list): Use gfc_full_array_i4.
+	* io/io.h: Use gfc_full_array_i4.
+
 2018-08-25  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR libfortran/86704
