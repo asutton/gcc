@@ -177,6 +177,7 @@ diagnostic_initialize (diagnostic_context *context, int n_opts)
   context->colorize_source_p = false;
   context->show_labels_p = false;
   context->show_line_numbers_p = false;
+  context->min_margin_width = 0;
   context->show_ruler_p = false;
   context->parseable_fixits_p = false;
   context->edit_context_ptr = NULL;
@@ -1439,6 +1440,18 @@ sorry (const char *gmsgid, ...)
   va_list ap;
   va_start (ap, gmsgid);
   rich_location richloc (line_table, input_location);
+  diagnostic_impl (&richloc, -1, gmsgid, &ap, DK_SORRY);
+  va_end (ap);
+}
+
+/* Same as above, but use location LOC instead of input_location.  */
+void
+sorry_at (location_t loc, const char *gmsgid, ...)
+{
+  auto_diagnostic_group d;
+  va_list ap;
+  va_start (ap, gmsgid);
+  rich_location richloc (line_table, loc);
   diagnostic_impl (&richloc, -1, gmsgid, &ap, DK_SORRY);
   va_end (ap);
 }

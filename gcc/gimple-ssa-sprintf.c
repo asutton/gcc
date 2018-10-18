@@ -455,7 +455,8 @@ get_format_string (tree format, location_t *ploc)
 }
 
 /* For convenience and brevity, shorter named entrypoints of
-   format_warning_at_substring and format_warning_at_substring_n.
+   format_string_diagnostic_t::emit_warning_va and
+   format_string_diagnostic_t::emit_warning_n_va.
    These have to be functions with the attribute so that exgettext
    works properly.  */
 
@@ -464,10 +465,11 @@ ATTRIBUTE_GCC_DIAG (5, 6)
 fmtwarn (const substring_loc &fmt_loc, location_t param_loc,
 	 const char *corrected_substring, int opt, const char *gmsgid, ...)
 {
+  format_string_diagnostic_t diag (fmt_loc, NULL, param_loc, NULL,
+				   corrected_substring);
   va_list ap;
   va_start (ap, gmsgid);
-  bool warned = format_warning_va (fmt_loc, NULL, param_loc, NULL,
-				   corrected_substring, opt, gmsgid, &ap);
+  bool warned = diag.emit_warning_va (opt, gmsgid, &ap);
   va_end (ap);
 
   return warned;
@@ -479,12 +481,12 @@ fmtwarn_n (const substring_loc &fmt_loc, location_t param_loc,
 	   const char *corrected_substring, int opt, unsigned HOST_WIDE_INT n,
 	   const char *singular_gmsgid, const char *plural_gmsgid, ...)
 {
+  format_string_diagnostic_t diag (fmt_loc, NULL, param_loc, NULL,
+				   corrected_substring);
   va_list ap;
   va_start (ap, plural_gmsgid);
-  bool warned = format_warning_n_va (fmt_loc, NULL, param_loc, NULL,
-				     corrected_substring,
-				     opt, n, singular_gmsgid, plural_gmsgid,
-				     &ap);
+  bool warned = diag.emit_warning_n_va (opt, n, singular_gmsgid, plural_gmsgid,
+					&ap);
   va_end (ap);
 
   return warned;
@@ -514,7 +516,7 @@ struct fmtresult
   /* Construct a FMTRESULT object with all counters initialized
      to MIN.  KNOWNRANGE is set when MIN is valid.  */
   fmtresult (unsigned HOST_WIDE_INT min = HOST_WIDE_INT_MAX)
-  : argmin (), argmax (),
+  : argmin (), argmax (), nonstr (),
     knownrange (min < HOST_WIDE_INT_MAX),
     mayfail (), nullp ()
   {
@@ -528,7 +530,7 @@ struct fmtresult
      KNOWNRANGE is set when both MIN and MAX are valid.   */
   fmtresult (unsigned HOST_WIDE_INT min, unsigned HOST_WIDE_INT max,
 	     unsigned HOST_WIDE_INT likely = HOST_WIDE_INT_MAX)
-  : argmin (), argmax (),
+  : argmin (), argmax (), nonstr (),
     knownrange (min < HOST_WIDE_INT_MAX && max < HOST_WIDE_INT_MAX),
     mayfail (), nullp ()
   {
@@ -554,6 +556,10 @@ struct fmtresult
   /* The minimum and maximum number of bytes that a directive
      results in on output for an argument in the range above.  */
   result_range range;
+
+  /* Non-nul when the argument of a string directive is not a nul
+     terminated string.  */
+  tree nonstr;
 
   /* True when the range above is obtained from a known value of
      a directive's argument or its bounds and not the result of
@@ -1046,9 +1052,7 @@ get_int_range (tree arg, HOST_WIDE_INT *pmin, HOST_WIDE_INT *pmax,
 	{
 	  /* Try to determine the range of values of the integer argument.  */
 	  value_range *vr = vr_values->get_value_range (arg);
-	  if (vr->type == VR_RANGE
-	      && TREE_CODE (vr->min) == INTEGER_CST
-	      && TREE_CODE (vr->max) == INTEGER_CST)
+	  if (range_int_cst_p (vr))
 	    {
 	      HOST_WIDE_INT type_min
 		= (TYPE_UNSIGNED (argtype)
@@ -1057,8 +1061,8 @@ get_int_range (tree arg, HOST_WIDE_INT *pmin, HOST_WIDE_INT *pmax,
 
 	      HOST_WIDE_INT type_max = tree_to_uhwi (TYPE_MAX_VALUE (argtype));
 
-	      *pmin = TREE_INT_CST_LOW (vr->min);
-	      *pmax = TREE_INT_CST_LOW (vr->max);
+	      *pmin = TREE_INT_CST_LOW (vr->min ());
+	      *pmax = TREE_INT_CST_LOW (vr->max ());
 
 	      if (*pmin < *pmax)
 		{
@@ -1348,12 +1352,10 @@ format_integer (const directive &dir, tree arg, vr_values *vr_values)
       /* Try to determine the range of values of the integer argument
 	 (range information is not available for pointers).  */
       value_range *vr = vr_values->get_value_range (arg);
-      if (vr->type == VR_RANGE
-	  && TREE_CODE (vr->min) == INTEGER_CST
-	  && TREE_CODE (vr->max) == INTEGER_CST)
+      if (range_int_cst_p (vr))
 	{
-	  argmin = vr->min;
-	  argmax = vr->max;
+	  argmin = vr->min ();
+	  argmax = vr->max ();
 
 	  /* Set KNOWNRANGE if the argument is in a known subrange
 	     of the directive's type and neither width nor precision
@@ -1366,12 +1368,11 @@ format_integer (const directive &dir, tree arg, vr_values *vr_values)
 	  res.argmin = argmin;
 	  res.argmax = argmax;
 	}
-      else if (vr->type == VR_ANTI_RANGE)
+      else if (vr->kind () == VR_ANTI_RANGE)
 	{
 	  /* Handle anti-ranges if/when bug 71690 is resolved.  */
 	}
-      else if (vr->type == VR_VARYING
-	       || vr->type == VR_UNDEFINED)
+      else if (vr->varying_p () || vr->undefined_p ())
 	{
 	  /* The argument here may be the result of promoting the actual
 	     argument to int.  Try to determine the type of the actual
@@ -1999,10 +2000,26 @@ get_string_length (tree str, unsigned eltsize)
   if (!str)
     return fmtresult ();
 
-  if (tree slen = c_strlen (str, 1, eltsize))
+  c_strlen_data data;
+  memset (&data, 0, sizeof (c_strlen_data));
+  tree slen = c_strlen (str, 1, &data, eltsize);
+  if (slen && TREE_CODE (slen) == INTEGER_CST)
     {
-      /* Simply return the length of the string.  */
+      /* The string is properly terminated and
+	 we know its length.  */
       fmtresult res (tree_to_shwi (slen));
+      res.nonstr = NULL_TREE;
+      return res;
+    }
+  else if (!slen
+	   && data.decl
+	   && data.len
+	   && TREE_CODE (data.len) == INTEGER_CST)
+    {
+      /* STR was not properly NUL terminated, but we have
+	 length information about the unterminated string.  */
+      fmtresult res (tree_to_shwi (data.len));
+      res.nonstr = data.decl;
       return res;
     }
 
@@ -2010,9 +2027,11 @@ get_string_length (tree str, unsigned eltsize)
      by STR.  Strings of unknown lengths are bounded by the sizes of
      arrays that subexpressions of STR may refer to.  Pointers that
      aren't known to point any such arrays result in LENRANGE[1] set
-     to SIZE_MAX.  */
+     to SIZE_MAX.  NONSTR is set to the declaration of the constant
+     array that is known not to be nul-terminated.  */
   tree lenrange[2];
-  bool flexarray = get_range_strlen (str, lenrange, eltsize);
+  tree nonstr;
+  bool flexarray = get_range_strlen (str, lenrange, eltsize, false, &nonstr);
 
   if (lenrange [0] || lenrange [1])
     {
@@ -2035,6 +2054,7 @@ get_string_length (tree str, unsigned eltsize)
 	max = HOST_WIDE_INT_M1U;
 
       fmtresult res (min, max);
+      res.nonstr = nonstr;
 
       /* Set RES.KNOWNRANGE to true if and only if all strings referenced
 	 by STR are known to be bounded (though not necessarily by their
@@ -2154,7 +2174,19 @@ format_string (const directive &dir, tree arg, vr_values *)
   fmtresult res;
 
   /* Compute the range the argument's length can be in.  */
-  int count_by = dir.specifier == 'S' || dir.modifier == FMT_LEN_l ? 4 : 1;
+  int count_by = 1;
+  if (dir.specifier == 'S' || dir.modifier == FMT_LEN_l)
+    {
+      /* Get a node for a C type that will be the same size
+	 as a wchar_t on the target.  */
+      tree node = get_typenode_from_name (MODIFIED_WCHAR_TYPE);
+
+      /* Now that we have a suitable node, get the number of
+	 bytes it occupies.  */
+      count_by = int_size_in_bytes (node); 
+      gcc_checking_assert (count_by == 2 || count_by == 4);
+    }
+
   fmtresult slen = get_string_length (arg, count_by);
   if (slen.range.min == slen.range.max
       && slen.range.min < HOST_WIDE_INT_MAX)
@@ -2313,6 +2345,11 @@ format_string (const directive &dir, tree arg, vr_values *)
 
       res.range.unlikely = res.range.max;
     }
+
+  /* If the argument isn't a nul-terminated string and the number
+     of bytes on output isn't bounded by precision, set NONSTR.  */
+  if (slen.nonstr && slen.range.min < (unsigned HOST_WIDE_INT)dir.prec[0])
+    res.nonstr = slen.nonstr;
 
   /* Bump up the byte counters if WIDTH is greater.  */
   return res.adjust_for_width_or_precision (dir.width);
@@ -2881,6 +2918,19 @@ format_directive (const sprintf_dom_walker::call_info &info,
 			       "%<INT_MAX%>"), dirlen,
 			  target_to_host (hostdir, sizeof hostdir, dir.beg),
 			  fmtres.range.min, fmtres.range.max);
+    }
+
+  if (!warned && fmtres.nonstr)
+    {
+      warned = fmtwarn (dirloc, argloc, NULL, info.warnopt (),
+			"%<%.*s%> directive argument is not a nul-terminated "
+			"string",
+			dirlen,
+			target_to_host (hostdir, sizeof hostdir, dir.beg));
+      if (warned && DECL_P (fmtres.nonstr))
+	inform (DECL_SOURCE_LOCATION (fmtres.nonstr),
+		"referenced argument declared here");
+      return false;
     }
 
   if (warned && fmtres.range.min < fmtres.range.likely
@@ -3848,12 +3898,10 @@ sprintf_dom_walker::handle_gimple_call (gimple_stmt_iterator *gsi)
 	     and use the greater of the two at level 1 and the smaller
 	     of them at level 2.  */
 	  value_range *vr = evrp_range_analyzer.get_value_range (size);
-	  if (vr->type == VR_RANGE
-	      && TREE_CODE (vr->min) == INTEGER_CST
-	      && TREE_CODE (vr->max) == INTEGER_CST)
+	  if (range_int_cst_p (vr))
 	    dstsize = (warn_level < 2
-		       ? TREE_INT_CST_LOW (vr->max)
-		       : TREE_INT_CST_LOW (vr->min));
+		       ? TREE_INT_CST_LOW (vr->max ())
+		       : TREE_INT_CST_LOW (vr->min ()));
 
 	  /* The destination size is not constant.  If the function is
 	     bounded (e.g., snprintf) a lower bound of zero doesn't
@@ -3931,6 +3979,8 @@ sprintf_dom_walker::handle_gimple_call (gimple_stmt_iterator *gsi)
   format_result res = format_result ();
 
   bool success = compute_format_length (info, &res);
+  if (res.warned)
+    gimple_set_no_warning (info.callstmt, true);
 
   /* When optimizing and the printf return value optimization is enabled,
      attempt to substitute the computed result for the return value of

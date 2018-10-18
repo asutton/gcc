@@ -464,15 +464,6 @@ SSA_VAL (tree x, bool *visited = NULL)
   return tem && tem->visited ? tem->valnum : x;
 }
 
-/* Return whether X was visited.  */
-
-inline bool
-SSA_VISITED (tree x)
-{
-  vn_ssa_aux_t tem = vn_ssa_aux_hash->find_with_hash (x, SSA_NAME_VERSION (x));
-  return tem && tem->visited;
-}
-
 /* Return the SSA value of the VUSE x, supporting released VDEFs
    during elimination which will value-number the VDEF to the
    associated VUSE (but not substitute in the whole lattice).  */
@@ -3036,8 +3027,7 @@ vn_nary_op_insert_into (vn_nary_op_t vno, vn_nary_op_table_type *table,
       vno->hashcode = vn_nary_op_compute_hash (vno);
       gcc_assert (! vno->predicated_values
 		  || (! vno->u.values->next
-		      && vno->u.values->valid_dominated_by_p[0] != EXIT_BLOCK
-		      && vno->u.values->valid_dominated_by_p[1] == EXIT_BLOCK));
+		      && vno->u.values->n == 1));
     }
 
   slot = table->find_slot_with_hash (vno, vno->hashcode, INSERT);
@@ -3216,7 +3206,6 @@ vn_nary_op_insert_pieces_predicated (unsigned int length, enum tree_code code,
   vno1->u.values->result = result;
   vno1->u.values->n = 1;
   vno1->u.values->valid_dominated_by_p[0] = pred_e->dest->index;
-  vno1->u.values->valid_dominated_by_p[1] = EXIT_BLOCK;
   return vn_nary_op_insert_into (vno1, valid_info->nary, true);
 }
 
@@ -4198,9 +4187,9 @@ visit_phi (gimple *phi, bool *inserted, bool backedges_varying_p)
 	  }
       }
 
-  /* If the value we want to use is the backedge and that wasn't visited
-     yet or if we should take it as VARYING but it has a non-VARYING
-     value drop to VARYING.  This only happens when not iterating.
+  /* If the value we want to use is flowing over the backedge and we
+     should take it as VARYING but it has a non-VARYING value drop to
+     VARYING.
      If we value-number a virtual operand never value-number to the
      value from the backedge as that confuses the alias-walking code.
      See gcc.dg/torture/pr87176.c.  If the value is the same on a
@@ -4210,7 +4199,6 @@ visit_phi (gimple *phi, bool *inserted, bool backedges_varying_p)
       && TREE_CODE (backedge_val) == SSA_NAME
       && sameval == backedge_val
       && (SSA_NAME_IS_VIRTUAL_OPERAND (backedge_val)
-	  || !SSA_VISITED (backedge_val)
 	  || SSA_VAL (backedge_val) != backedge_val))
     /* Note this just drops to VARYING without inserting the PHI into
        the hashes.  */
@@ -5468,7 +5456,10 @@ eliminate_dom_walker::eliminate_cleanup (bool region_p)
 		if (is_gimple_assign (stmt))
 		  {
 		    gimple_assign_set_rhs_from_tree (&gsi, sprime);
-		    update_stmt (gsi_stmt (gsi));
+		    stmt = gsi_stmt (gsi);
+		    update_stmt (stmt);
+		    if (maybe_clean_or_replace_eh_stmt (stmt, stmt))
+		      bitmap_set_bit (need_eh_cleanup, gimple_bb (stmt)->index);
 		    continue;
 		  }
 		else
@@ -5976,15 +5967,23 @@ process_bb (rpo_elim &avail, basic_block bb,
     {
       FOR_EACH_EDGE (e, ei, bb->succs)
 	{
-	  if (e->flags & EDGE_EXECUTABLE)
-	    continue;
-	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    fprintf (dump_file,
-		     "marking outgoing edge %d -> %d executable\n",
-		     e->src->index, e->dest->index);
-	  gcc_checking_assert (iterate || !(e->flags & EDGE_DFS_BACK));
-	  e->flags |= EDGE_EXECUTABLE;
-	  e->dest->flags |= BB_EXECUTABLE;
+	  if (!(e->flags & EDGE_EXECUTABLE))
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file,
+			 "marking outgoing edge %d -> %d executable\n",
+			 e->src->index, e->dest->index);
+	      e->flags |= EDGE_EXECUTABLE;
+	      e->dest->flags |= BB_EXECUTABLE;
+	    }
+	  else if (!(e->dest->flags & BB_EXECUTABLE))
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file,
+			 "marking destination block %d reachable\n",
+			 e->dest->index);
+	      e->dest->flags |= BB_EXECUTABLE;
+	    }
 	}
     }
   for (gimple_stmt_iterator gsi = gsi_start_bb (bb);
@@ -6120,8 +6119,15 @@ process_bb (rpo_elim &avail, basic_block bb,
 			 "marking known outgoing %sedge %d -> %d executable\n",
 			 e->flags & EDGE_DFS_BACK ? "back-" : "",
 			 e->src->index, e->dest->index);
-	      gcc_checking_assert (iterate || !(e->flags & EDGE_DFS_BACK));
 	      e->flags |= EDGE_EXECUTABLE;
+	      e->dest->flags |= BB_EXECUTABLE;
+	    }
+	  else if (!(e->dest->flags & BB_EXECUTABLE))
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file,
+			 "marking destination block %d reachable\n",
+			 e->dest->index);
 	      e->dest->flags |= BB_EXECUTABLE;
 	    }
 	}
@@ -6129,15 +6135,23 @@ process_bb (rpo_elim &avail, basic_block bb,
 	{
 	  FOR_EACH_EDGE (e, ei, bb->succs)
 	    {
-	      if (e->flags & EDGE_EXECUTABLE)
-		continue;
-	      if (dump_file && (dump_flags & TDF_DETAILS))
-		fprintf (dump_file,
-			 "marking outgoing edge %d -> %d executable\n",
-			 e->src->index, e->dest->index);
-	      gcc_checking_assert (iterate || !(e->flags & EDGE_DFS_BACK));
-	      e->flags |= EDGE_EXECUTABLE;
-	      e->dest->flags |= BB_EXECUTABLE;
+	      if (!(e->flags & EDGE_EXECUTABLE))
+		{
+		  if (dump_file && (dump_flags & TDF_DETAILS))
+		    fprintf (dump_file,
+			     "marking outgoing edge %d -> %d executable\n",
+			     e->src->index, e->dest->index);
+		  e->flags |= EDGE_EXECUTABLE;
+		  e->dest->flags |= BB_EXECUTABLE;
+		}
+	      else if (!(e->dest->flags & BB_EXECUTABLE))
+		{
+		  if (dump_file && (dump_flags & TDF_DETAILS))
+		    fprintf (dump_file,
+			     "marking destination block %d reachable\n",
+			     e->dest->index);
+		  e->dest->flags |= BB_EXECUTABLE;
+		}
 	    }
 	}
 
@@ -6200,6 +6214,9 @@ struct unwind_state
   /* Whether to handle this as iteration point or whether to treat
      incoming backedge PHI values as varying.  */
   bool iterate;
+  /* Maximum RPO index this block is reachable from.  */
+  int max_rpo;
+  /* Unwind state.  */
   void *ob_top;
   vn_reference_t ref_top;
   vn_phi_t phi_top;
@@ -6285,8 +6302,8 @@ do_rpo_vn (function *fn, edge entry, bitmap exit_bbs,
     }
 
   int *rpo = XNEWVEC (int, n_basic_blocks_for_fn (fn) - NUM_FIXED_BLOCKS);
-  int n = rev_post_order_and_mark_dfs_back_seme (fn, entry, exit_bbs,
-						 iterate, rpo);
+  int n = rev_post_order_and_mark_dfs_back_seme
+    (fn, entry, exit_bbs, !loops_state_satisfies_p (LOOPS_NEED_FIXUP), rpo);
   /* rev_post_order_and_mark_dfs_back_seme fills RPO in reverse order.  */
   for (int i = 0; i < n / 2; ++i)
     std::swap (rpo[i], rpo[n-i-1]);
@@ -6352,10 +6369,12 @@ do_rpo_vn (function *fn, edge entry, bitmap exit_bbs,
   vn_valueize = rpo_vn_valueize;
 
   /* Initialize the unwind state and edge/BB executable state.  */
+  bool need_max_rpo_iterate = false;
   for (int i = 0; i < n; ++i)
     {
       basic_block bb = BASIC_BLOCK_FOR_FN (fn, rpo[i]);
       rpo_state[i].visited = 0;
+      rpo_state[i].max_rpo = i;
       bb->flags &= ~BB_EXECUTABLE;
       bool has_backedges = false;
       edge e;
@@ -6364,21 +6383,53 @@ do_rpo_vn (function *fn, edge entry, bitmap exit_bbs,
 	{
 	  if (e->flags & EDGE_DFS_BACK)
 	    has_backedges = true;
-	  if (! iterate && (e->flags & EDGE_DFS_BACK))
+	  e->flags &= ~EDGE_EXECUTABLE;
+	  if (iterate || e == entry)
+	    continue;
+	  if (bb_to_rpo[e->src->index] > i)
 	    {
-	      e->flags |= EDGE_EXECUTABLE;
-	      /* ???  Strictly speaking we only need to unconditionally
-		 process a block when it is in an irreducible region,
-		 thus when it may be reachable via the backedge only.  */
-	      bb->flags |= BB_EXECUTABLE;
+	      rpo_state[i].max_rpo = MAX (rpo_state[i].max_rpo,
+					  bb_to_rpo[e->src->index]);
+	      need_max_rpo_iterate = true;
 	    }
 	  else
-	    e->flags &= ~EDGE_EXECUTABLE;
+	    rpo_state[i].max_rpo
+	      = MAX (rpo_state[i].max_rpo,
+		     rpo_state[bb_to_rpo[e->src->index]].max_rpo);
 	}
       rpo_state[i].iterate = iterate && has_backedges;
     }
   entry->flags |= EDGE_EXECUTABLE;
   entry->dest->flags |= BB_EXECUTABLE;
+
+  /* When there are irreducible regions the simplistic max_rpo computation
+     above for the case of backedges doesn't work and we need to iterate
+     until there are no more changes.  */
+  unsigned nit = 0;
+  while (need_max_rpo_iterate)
+    {
+      nit++;
+      need_max_rpo_iterate = false;
+      for (int i = 0; i < n; ++i)
+	{
+	  basic_block bb = BASIC_BLOCK_FOR_FN (fn, rpo[i]);
+	  edge e;
+	  edge_iterator ei;
+	  FOR_EACH_EDGE (e, ei, bb->preds)
+	    {
+	      if (e == entry)
+		continue;
+	      int max_rpo = MAX (rpo_state[i].max_rpo,
+				 rpo_state[bb_to_rpo[e->src->index]].max_rpo);
+	      if (rpo_state[i].max_rpo != max_rpo)
+		{
+		  rpo_state[i].max_rpo = max_rpo;
+		  need_max_rpo_iterate = true;
+		}
+	    }
+	}
+    }
+  statistics_histogram_event (cfun, "RPO max_rpo iterations", nit);
 
   /* As heuristic to improve compile-time we handle only the N innermost
      loops and the outermost one optimistically.  */
@@ -6399,7 +6450,6 @@ do_rpo_vn (function *fn, edge entry, bitmap exit_bbs,
 		if (e->flags & EDGE_DFS_BACK)
 		  {
 		    e->flags |= EDGE_EXECUTABLE;
-		    e->dest->flags |= BB_EXECUTABLE;
 		    /* There can be a non-latch backedge into the header
 		       which is part of an outer irreducible region.  We
 		       cannot avoid iterating this block then.  */
@@ -6417,110 +6467,165 @@ do_rpo_vn (function *fn, edge entry, bitmap exit_bbs,
 	    }
     }
 
-  /* Go and process all blocks, iterating as necessary.  */
-  int idx = 0;
   uint64_t nblk = 0;
-  do
+  int idx = 0;
+  if (iterate)
+    /* Go and process all blocks, iterating as necessary.  */
+    do
+      {
+	basic_block bb = BASIC_BLOCK_FOR_FN (fn, rpo[idx]);
+
+	/* If the block has incoming backedges remember unwind state.  This
+	   is required even for non-executable blocks since in irreducible
+	   regions we might reach them via the backedge and re-start iterating
+	   from there.
+	   Note we can individually mark blocks with incoming backedges to
+	   not iterate where we then handle PHIs conservatively.  We do that
+	   heuristically to reduce compile-time for degenerate cases.  */
+	if (rpo_state[idx].iterate)
+	  {
+	    rpo_state[idx].ob_top = obstack_alloc (&vn_tables_obstack, 0);
+	    rpo_state[idx].ref_top = last_inserted_ref;
+	    rpo_state[idx].phi_top = last_inserted_phi;
+	    rpo_state[idx].nary_top = last_inserted_nary;
+	  }
+
+	if (!(bb->flags & BB_EXECUTABLE))
+	  {
+	    if (dump_file && (dump_flags & TDF_DETAILS))
+	      fprintf (dump_file, "Block %d: BB%d found not executable\n",
+		       idx, bb->index);
+	    idx++;
+	    continue;
+	  }
+
+	if (dump_file && (dump_flags & TDF_DETAILS))
+	  fprintf (dump_file, "Processing block %d: BB%d\n", idx, bb->index);
+	nblk++;
+	todo |= process_bb (avail, bb,
+			    rpo_state[idx].visited != 0,
+			    rpo_state[idx].iterate,
+			    iterate, eliminate, do_region, exit_bbs);
+	rpo_state[idx].visited++;
+
+	/* Verify if changed values flow over executable outgoing backedges
+	   and those change destination PHI values (that's the thing we
+	   can easily verify).  Reduce over all such edges to the farthest
+	   away PHI.  */
+	int iterate_to = -1;
+	edge_iterator ei;
+	edge e;
+	FOR_EACH_EDGE (e, ei, bb->succs)
+	  if ((e->flags & (EDGE_DFS_BACK|EDGE_EXECUTABLE))
+	      == (EDGE_DFS_BACK|EDGE_EXECUTABLE)
+	      && rpo_state[bb_to_rpo[e->dest->index]].iterate)
+	    {
+	      int destidx = bb_to_rpo[e->dest->index];
+	      if (!rpo_state[destidx].visited)
+		{
+		  if (dump_file && (dump_flags & TDF_DETAILS))
+		    fprintf (dump_file, "Unvisited destination %d\n",
+			     e->dest->index);
+		  if (iterate_to == -1 || destidx < iterate_to)
+		    iterate_to = destidx;
+		  continue;
+		}
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file, "Looking for changed values of backedge"
+			 " %d->%d destination PHIs\n",
+			 e->src->index, e->dest->index);
+	      vn_context_bb = e->dest;
+	      gphi_iterator gsi;
+	      for (gsi = gsi_start_phis (e->dest);
+		   !gsi_end_p (gsi); gsi_next (&gsi))
+		{
+		  bool inserted = false;
+		  /* While we'd ideally just iterate on value changes
+		     we CSE PHIs and do that even across basic-block
+		     boundaries.  So even hashtable state changes can
+		     be important (which is roughly equivalent to
+		     PHI argument value changes).  To not excessively
+		     iterate because of that we track whether a PHI
+		     was CSEd to with GF_PLF_1.  */
+		  bool phival_changed;
+		  if ((phival_changed = visit_phi (gsi.phi (),
+						   &inserted, false))
+		      || (inserted && gimple_plf (gsi.phi (), GF_PLF_1)))
+		    {
+		      if (!phival_changed
+			  && dump_file && (dump_flags & TDF_DETAILS))
+			fprintf (dump_file, "PHI was CSEd and hashtable "
+				 "state (changed)\n");
+		      if (iterate_to == -1 || destidx < iterate_to)
+			iterate_to = destidx;
+		      break;
+		    }
+		}
+	      vn_context_bb = NULL;
+	    }
+	if (iterate_to != -1)
+	  {
+	    do_unwind (&rpo_state[iterate_to], iterate_to, avail, bb_to_rpo);
+	    idx = iterate_to;
+	    if (dump_file && (dump_flags & TDF_DETAILS))
+	      fprintf (dump_file, "Iterating to %d BB%d\n",
+		       iterate_to, rpo[iterate_to]);
+	    continue;
+	  }
+
+	idx++;
+      }
+    while (idx < n);
+
+  else /* !iterate */
     {
-      basic_block bb = BASIC_BLOCK_FOR_FN (fn, rpo[idx]);
-
-      /* If the block has incoming backedges remember unwind state.  This
-         is required even for non-executable blocks since in irreducible
-	 regions we might reach them via the backedge and re-start iterating
-	 from there.
-	 Note we can individually mark blocks with incoming backedges to
-	 not iterate where we then handle PHIs conservatively.  We do that
-	 heuristically to reduce compile-time for degenerate cases.  */
-      if (rpo_state[idx].iterate)
+      /* Process all blocks greedily with a worklist that enforces RPO
+         processing of reachable blocks.  */
+      auto_bitmap worklist;
+      bitmap_set_bit (worklist, 0);
+      while (!bitmap_empty_p (worklist))
 	{
-	  rpo_state[idx].ob_top = obstack_alloc (&vn_tables_obstack, 0);
-	  rpo_state[idx].ref_top = last_inserted_ref;
-	  rpo_state[idx].phi_top = last_inserted_phi;
-	  rpo_state[idx].nary_top = last_inserted_nary;
-	}
+	  int idx = bitmap_first_set_bit (worklist);
+	  bitmap_clear_bit (worklist, idx);
+	  basic_block bb = BASIC_BLOCK_FOR_FN (fn, rpo[idx]);
+	  gcc_assert ((bb->flags & BB_EXECUTABLE)
+		      && !rpo_state[idx].visited);
 
-      if (!(bb->flags & BB_EXECUTABLE))
-	{
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    fprintf (dump_file, "Block %d: BB%d found not executable\n",
-		     idx, bb->index);
-	  idx++;
-	  continue;
-	}
+	    fprintf (dump_file, "Processing block %d: BB%d\n", idx, bb->index);
 
-      if (dump_file && (dump_flags & TDF_DETAILS))
-	fprintf (dump_file, "Processing block %d: BB%d\n", idx, bb->index);
-      nblk++;
-      todo |= process_bb (avail, bb,
-			  rpo_state[idx].visited != 0,
-			  rpo_state[idx].iterate,
-			  iterate, eliminate, do_region, exit_bbs);
-      rpo_state[idx].visited++;
-
-      if (iterate)
-	{
-	  /* Verify if changed values flow over executable outgoing backedges
-	     and those change destination PHI values (that's the thing we
-	     can easily verify).  Reduce over all such edges to the farthest
-	     away PHI.  */
-	  int iterate_to = -1;
+	  /* When we run into predecessor edges where we cannot trust its
+	     executable state mark them executable so PHI processing will
+	     be conservative.
+	     ???  Do we need to force arguments flowing over that edge
+	     to be varying or will they even always be?  */
 	  edge_iterator ei;
 	  edge e;
-	  FOR_EACH_EDGE (e, ei, bb->succs)
-	    if ((e->flags & (EDGE_DFS_BACK|EDGE_EXECUTABLE))
-		== (EDGE_DFS_BACK|EDGE_EXECUTABLE)
-		&& rpo_state[bb_to_rpo[e->dest->index]].iterate)
+	  FOR_EACH_EDGE (e, ei, bb->preds)
+	    if (!(e->flags & EDGE_EXECUTABLE)
+		&& !rpo_state[bb_to_rpo[e->src->index]].visited
+		&& rpo_state[bb_to_rpo[e->src->index]].max_rpo >= (int)idx)
 	      {
 		if (dump_file && (dump_flags & TDF_DETAILS))
-		  fprintf (dump_file, "Looking for changed values of backedge "
-			   "%d->%d destination PHIs\n",
+		  fprintf (dump_file, "Cannot trust state of predecessor "
+			   "edge %d -> %d, marking executable\n",
 			   e->src->index, e->dest->index);
-		vn_context_bb = e->dest;
-		gphi_iterator gsi;
-		for (gsi = gsi_start_phis (e->dest);
-		     !gsi_end_p (gsi); gsi_next (&gsi))
-		  {
-		    bool inserted = false;
-		    /* While we'd ideally just iterate on value changes
-		       we CSE PHIs and do that even across basic-block
-		       boundaries.  So even hashtable state changes can
-		       be important (which is roughly equivalent to
-		       PHI argument value changes).  To not excessively
-		       iterate because of that we track whether a PHI
-		       was CSEd to with GF_PLF_1.  */
-		    bool phival_changed;
-		    if ((phival_changed = visit_phi (gsi.phi (),
-						     &inserted, false))
-			|| (inserted && gimple_plf (gsi.phi (), GF_PLF_1)))
-		      {
-			if (!phival_changed
-			    && dump_file && (dump_flags & TDF_DETAILS))
-			  fprintf (dump_file, "PHI was CSEd and hashtable "
-				   "state (changed)\n");
-			int destidx = bb_to_rpo[e->dest->index];
-			if (iterate_to == -1
-			    || destidx < iterate_to)
-			  iterate_to = destidx;
-			break;
-		      }
-		  }
-		vn_context_bb = NULL;
+		e->flags |= EDGE_EXECUTABLE;
 	      }
-	  if (iterate_to != -1)
-	    {
-	      do_unwind (&rpo_state[iterate_to], iterate_to,
-			 avail, bb_to_rpo);
-	      idx = iterate_to;
-	      if (dump_file && (dump_flags & TDF_DETAILS))
-		fprintf (dump_file, "Iterating to %d BB%d\n",
-			 iterate_to, rpo[iterate_to]);
-	      continue;
-	    }
-	}
 
-      idx++;
+	  nblk++;
+	  todo |= process_bb (avail, bb, false, false, false, eliminate,
+			      do_region, exit_bbs);
+	  rpo_state[idx].visited++;
+
+	  FOR_EACH_EDGE (e, ei, bb->succs)
+	    if ((e->flags & EDGE_EXECUTABLE)
+		&& e->dest->index != EXIT_BLOCK
+		&& (!do_region || !bitmap_bit_p (exit_bbs, e->dest->index))
+		&& !rpo_state[bb_to_rpo[e->dest->index]].visited)
+	      bitmap_set_bit (worklist, bb_to_rpo[e->dest->index]);
+	}
     }
-  while (idx < n);
 
   /* If statistics or dump file active.  */
   int nex = 0;

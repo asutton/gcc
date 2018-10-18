@@ -2727,13 +2727,14 @@ finish_unary_op_expr (location_t op_loc, enum tree_code code, cp_expr expr,
   /* TODO: build_x_unary_op doesn't always honor the location.  */
   result.set_location (combined_loc);
 
-  tree result_ovl, expr_ovl;
+  if (result == error_mark_node)
+    return result;
 
   if (!(complain & tf_warning))
     return result;
 
-  result_ovl = result;
-  expr_ovl = expr;
+  tree result_ovl = result;
+  tree expr_ovl = expr;
 
   if (!processing_template_decl)
     expr_ovl = cp_fully_fold (expr_ovl);
@@ -6878,7 +6879,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	handle_map_references:
 	  if (!remove
 	      && !processing_template_decl
-	      && (ort & C_ORT_OMP_DECLARE_SIMD) == C_ORT_OMP
+	      && ort != C_ORT_DECLARE_SIMD
 	      && TYPE_REF_P (TREE_TYPE (OMP_CLAUSE_DECL (c))))
 	    {
 	      t = OMP_CLAUSE_DECL (c);

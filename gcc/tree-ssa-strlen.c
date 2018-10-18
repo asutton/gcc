@@ -291,8 +291,6 @@ get_addr_stridx (tree exp, tree ptr, unsigned HOST_WIDE_INT *offset_out)
 static int
 get_stridx (tree exp)
 {
-  tree s, o;
-
   if (TREE_CODE (exp) == SSA_NAME)
     {
       if (ssa_ver_to_stridx[SSA_NAME_VERSION (exp)])
@@ -336,18 +334,10 @@ get_stridx (tree exp)
 	return idx;
     }
 
-  s = string_constant (exp, &o, NULL, NULL);
-  if (s != NULL_TREE
-      && (o == NULL_TREE || tree_fits_shwi_p (o))
-      && TREE_STRING_LENGTH (s) > 0)
-    {
-      HOST_WIDE_INT offset = o ? tree_to_shwi (o) : 0;
-      const char *p = TREE_STRING_POINTER (s);
-      int max = TREE_STRING_LENGTH (s) - 1;
+  const char *p = c_getstr (exp);
+  if (p)
+    return ~(int) strlen (p);
 
-      if (p[max] == '\0' && offset >= 0 && offset <= max)
-	return ~(int) strlen (p + offset);
-    }
   return 0;
 }
 
@@ -1210,7 +1200,7 @@ maybe_set_strlen_range (tree lhs, tree src, tree bound)
       else if (TREE_CODE (bound) == SSA_NAME)
 	{
 	  wide_int minbound, maxbound;
-	  value_range_type rng = get_range_info (bound, &minbound, &maxbound);
+	  value_range_kind rng = get_range_info (bound, &minbound, &maxbound);
 	  if (rng == VR_RANGE)
 	    {
 	      /* For a bound in a known range, adjust the range determined
@@ -1866,7 +1856,7 @@ maybe_diag_stxncpy_trunc (gimple_stmt_iterator gsi, tree src, tree cnt)
     cntrange[0] = cntrange[1] = wi::to_wide (cnt);
   else if (TREE_CODE (cnt) == SSA_NAME)
     {
-      enum value_range_type rng = get_range_info (cnt, cntrange, cntrange + 1);
+      enum value_range_kind rng = get_range_info (cnt, cntrange, cntrange + 1);
       if (rng == VR_RANGE)
 	;
       else if (rng == VR_ANTI_RANGE)
@@ -3692,7 +3682,7 @@ strlen_check_and_optimize_stmt (gimple_stmt_iterator *gsi, bool *cleanup_eh)
 			   if we don't have anything better.  */
 			wide_int min, max;
 			tree type = TREE_TYPE (lhs);
-			enum value_range_type vr
+			enum value_range_kind vr
 			  = get_range_info (lhs, &min, &max);
 			if (vr == VR_VARYING
 			    || (vr == VR_RANGE
