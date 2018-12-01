@@ -125,7 +125,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       struct _Vector_impl
 	: public _Tp_alloc_type, public _Vector_impl_data
       {
-	_Vector_impl() _GLIBCXX_NOEXCEPT_IF( noexcept(_Tp_alloc_type()) )
+	_Vector_impl() _GLIBCXX_NOEXCEPT_IF(
+	    is_nothrow_default_constructible<_Tp_alloc_type>::value)
 	: _Tp_alloc_type()
 	{ }
 
@@ -420,6 +421,15 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       typedef size_t					size_type;
       typedef ptrdiff_t					difference_type;
       typedef _Alloc					allocator_type;
+
+    private:
+#if __cplusplus >= 201103L
+      static constexpr bool __use_relocate =
+	noexcept(std::__relocate_a(std::declval<pointer>(),
+				   std::declval<pointer>(),
+				   std::declval<pointer>(),
+				   std::declval<_Tp_alloc_type&>()));
+#endif
 
     protected:
       using _Base::_M_allocate;

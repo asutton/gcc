@@ -823,6 +823,9 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
 	  if (align < modesize)
 	    align = modesize;
 
+	  if (!HAVE_LD_ALIGNED_SHF_MERGE && align > 8)
+	    return readonly_data_section;
+
 	  str = TREE_STRING_POINTER (decl);
 	  unit = GET_MODE_SIZE (mode);
 
@@ -861,7 +864,8 @@ mergeable_constant_section (machine_mode mode ATTRIBUTE_UNUSED,
       && known_le (GET_MODE_BITSIZE (mode), align)
       && align >= 8
       && align <= 256
-      && (align & (align - 1)) == 0)
+      && (align & (align - 1)) == 0
+      && (HAVE_LD_ALIGNED_SHF_MERGE ? 1 : align == 8))
     {
       const char *prefix = function_mergeable_rodata_prefix ();
       char *name = (char *) alloca (strlen (prefix) + 30);
@@ -2729,10 +2733,24 @@ integer_asm_op (int size, int aligned_p)
       return targetm.asm_out.byte_op;
     case 2:
       return ops->hi;
+    case 3:
+      return ops->psi;
     case 4:
       return ops->si;
+    case 5:
+    case 6:
+    case 7:
+      return ops->pdi;
     case 8:
       return ops->di;
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+      return ops->pti;
     case 16:
       return ops->ti;
     default:
@@ -2953,6 +2971,11 @@ decode_addr_const (tree exp, struct addr_const *value)
 		       gen_rtx_SYMBOL_REF (Pmode, "origin of addresses"));
       break;
 
+    case COMPOUND_LITERAL_EXPR:
+      gcc_assert (COMPOUND_LITERAL_EXPR_DECL (target));
+      x = DECL_RTL (COMPOUND_LITERAL_EXPR_DECL (target));
+      break;
+
     default:
       gcc_unreachable ();
     }
@@ -3042,6 +3065,10 @@ const_hash_1 (const tree exp)
       }
 
     case ADDR_EXPR:
+      if (CONSTANT_CLASS_P (TREE_OPERAND (exp, 0)))
+       return const_hash_1 (TREE_OPERAND (exp, 0));
+
+      /* Fallthru.  */
     case FDESC_EXPR:
       {
 	struct addr_const value;

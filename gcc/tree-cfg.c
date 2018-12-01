@@ -2569,9 +2569,9 @@ dump_cfg_stats (FILE *file)
   long num_edges;
   basic_block bb;
   const char * const fmt_str   = "%-30s%-13s%12s\n";
-  const char * const fmt_str_1 = "%-30s%13d%11lu%c\n";
-  const char * const fmt_str_2 = "%-30s%13ld%11lu%c\n";
-  const char * const fmt_str_3 = "%-43s%11lu%c\n";
+  const char * const fmt_str_1 = "%-30s%13d" PRsa (11) "\n";
+  const char * const fmt_str_2 = "%-30s%13ld" PRsa (11) "\n";
+  const char * const fmt_str_3 = "%-43s" PRsa (11) "\n";
   const char *funcname = current_function_name ();
 
   fprintf (file, "\nCFG Statistics for %s\n\n", funcname);
@@ -2584,18 +2584,18 @@ dump_cfg_stats (FILE *file)
   size = n_basic_blocks_for_fn (cfun) * sizeof (struct basic_block_def);
   total += size;
   fprintf (file, fmt_str_1, "Basic blocks", n_basic_blocks_for_fn (cfun),
-	   SCALE (size), LABEL (size));
+	   SIZE_AMOUNT (size));
 
   num_edges = 0;
   FOR_EACH_BB_FN (bb, cfun)
     num_edges += EDGE_COUNT (bb->succs);
   size = num_edges * sizeof (struct edge_def);
   total += size;
-  fprintf (file, fmt_str_2, "Edges", num_edges, SCALE (size), LABEL (size));
+  fprintf (file, fmt_str_2, "Edges", num_edges, SIZE_AMOUNT (size));
 
   fprintf (file, "---------------------------------------------------------\n");
-  fprintf (file, fmt_str_3, "Total memory used by CFG data", SCALE (total),
-	   LABEL (total));
+  fprintf (file, fmt_str_3, "Total memory used by CFG data",
+	   SIZE_AMOUNT (total));
   fprintf (file, "---------------------------------------------------------\n");
   fprintf (file, "\n");
 
@@ -2720,7 +2720,7 @@ is_ctrl_altering_stmt (gimple *t)
     }
 
   /* If a statement can throw, it alters control flow.  */
-  return stmt_can_throw_internal (t);
+  return stmt_can_throw_internal (cfun, t);
 }
 
 
@@ -5387,7 +5387,7 @@ verify_gimple_in_cfg (struct function *fn, bool verify_nothrow)
 	    visited_throwing_stmts.add (stmt);
 	  if (lp_nr > 0)
 	    {
-	      if (!stmt_could_throw_p (stmt))
+	      if (!stmt_could_throw_p (cfun, stmt))
 		{
 		  if (verify_nothrow)
 		    {
@@ -6104,11 +6104,19 @@ gimple_empty_block_p (basic_block bb)
   gimple_stmt_iterator gsi = gsi_after_labels (bb);
   if (phi_nodes (bb))
     return false;
-  if (gsi_end_p (gsi))
-    return true;
-  if (is_gimple_debug (gsi_stmt (gsi)))
-    gsi_next_nondebug (&gsi);
-  return gsi_end_p (gsi);
+  while (!gsi_end_p (gsi))
+    {
+      gimple *stmt = gsi_stmt (gsi);
+      if (is_gimple_debug (stmt))
+	;
+      else if (gimple_code (stmt) == GIMPLE_NOP
+	       || gimple_code (stmt) == GIMPLE_PREDICT)
+	;
+      else
+	return false;
+      gsi_next (&gsi);
+    }
+  return true;
 }
 
 
@@ -8283,7 +8291,7 @@ stmt_can_terminate_bb_p (gimple *t)
 
   /* Eh exception not handled internally terminates execution of the whole
      function.  */
-  if (stmt_can_throw_external (t))
+  if (stmt_can_throw_external (cfun, t))
     return true;
 
   /* NORETURN and LONGJMP calls already have an edge to exit.
@@ -8599,7 +8607,7 @@ gimple_purge_dead_eh_edges (basic_block bb)
   edge_iterator ei;
   gimple *stmt = last_stmt (bb);
 
-  if (stmt && stmt_can_throw_internal (stmt))
+  if (stmt && stmt_can_throw_internal (cfun, stmt))
     return false;
 
   for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
@@ -8790,23 +8798,22 @@ gimple_lv_add_condition_to_bb (basic_block first_head ATTRIBUTE_UNUSED,
 
 
 /* Do book-keeping of basic block BB for the profile consistency checker.
-   If AFTER_PASS is 0, do pre-pass accounting, or if AFTER_PASS is 1
-   then do post-pass accounting.  Store the counting in RECORD.  */
+   Store the counting in RECORD.  */
 static void
-gimple_account_profile_record (basic_block bb, int after_pass,
+gimple_account_profile_record (basic_block bb,
 			       struct profile_record *record)
 {
   gimple_stmt_iterator i;
   for (i = gsi_start_bb (bb); !gsi_end_p (i); gsi_next (&i))
     {
-      record->size[after_pass]
+      record->size
 	+= estimate_num_insns (gsi_stmt (i), &eni_size_weights);
       if (bb->count.initialized_p ())
-	record->time[after_pass]
+	record->time
 	  += estimate_num_insns (gsi_stmt (i),
 				 &eni_time_weights) * bb->count.to_gcov_type ();
       else if (profile_status_for_fn (cfun) == PROFILE_GUESSED)
-	record->time[after_pass]
+	record->time
 	  += estimate_num_insns (gsi_stmt (i),
 				 &eni_time_weights) * bb->count.to_frequency (cfun);
     }
@@ -9205,7 +9212,7 @@ public:
 unsigned int
 pass_warn_function_return::execute (function *fun)
 {
-  source_location location;
+  location_t location;
   gimple *last;
   edge e;
   edge_iterator ei;

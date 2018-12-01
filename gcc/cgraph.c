@@ -62,6 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "stringpool.h"
 #include "attribs.h"
+#include "selftest.h"
 
 /* FIXME: Only for PROP_loops, but cgraph shouldn't have to know about this.  */
 #include "tree-pass.h"
@@ -815,9 +816,8 @@ cgraph_edge::set_call_stmt (gcall *new_stmt, bool update_speculative)
       e = make_direct (new_callee);
     }
 
-  push_cfun (DECL_STRUCT_FUNCTION (e->caller->decl));
-  e->can_throw_external = stmt_can_throw_external (new_stmt);
-  pop_cfun ();
+  function *fun = DECL_STRUCT_FUNCTION (e->caller->decl);
+  e->can_throw_external = stmt_can_throw_external (fun, new_stmt);
   if (e->caller->call_site_hash)
     cgraph_add_edge_to_call_site_hash (e);
 }
@@ -870,10 +870,9 @@ symbol_table::create_edge (cgraph_node *caller, cgraph_node *callee,
   edge->count = count;
 
   edge->call_stmt = call_stmt;
-  push_cfun (DECL_STRUCT_FUNCTION (caller->decl));
   edge->can_throw_external
-    = call_stmt ? stmt_can_throw_external (call_stmt) : false;
-  pop_cfun ();
+    = call_stmt ? stmt_can_throw_external (DECL_STRUCT_FUNCTION (caller->decl),
+					   call_stmt) : false;
   if (call_stmt
       && callee && callee->decl
       && !gimple_check_call_matching_types (call_stmt, callee->decl,
@@ -2018,7 +2017,6 @@ cgraph_node::dump (FILE *f)
   if (profile_id)
     fprintf (f, "  Profile id: %i\n",
 	     profile_id);
-  fprintf (f, "  First run: %i\n", tp_first_run);
   cgraph_function_version_info *vi = function_version ();
   if (vi != NULL)
     {
@@ -2042,11 +2040,13 @@ cgraph_node::dump (FILE *f)
   fprintf (f, "  Function flags:");
   if (count.initialized_p ())
     {
-      fprintf (f, " count: ");
+      fprintf (f, " count:");
       count.dump (f);
     }
+  if (tp_first_run > 0)
+    fprintf (f, " first_run:%i", tp_first_run);
   if (origin)
-    fprintf (f, " nested in: %s", origin->asm_name ());
+    fprintf (f, " nested in:%s", origin->asm_name ());
   if (gimple_has_body_p (decl))
     fprintf (f, " body");
   if (process)
@@ -2083,10 +2083,6 @@ cgraph_node::dump (FILE *f)
     fprintf (f, " unlikely_executed");
   if (frequency == NODE_FREQUENCY_EXECUTED_ONCE)
     fprintf (f, " executed_once");
-  if (only_called_at_startup)
-    fprintf (f, " only_called_at_startup");
-  if (only_called_at_exit)
-    fprintf (f, " only_called_at_exit");
   if (opt_for_fn (decl, optimize_size))
     fprintf (f, " optimize_size");
   if (parallelized_function)
@@ -2098,7 +2094,7 @@ cgraph_node::dump (FILE *f)
     {
       fprintf (f, "  Thunk");
       if (thunk.alias)
-        fprintf (f, "  of %s (asm: %s)",
+	fprintf (f, "  of %s (asm:%s)",
 		 lang_hooks.decl_printable_name (thunk.alias, 2),
 		 IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk.alias)));
       fprintf (f, " fixed offset %i virtual value %i indirect_offset %i "
@@ -2114,7 +2110,7 @@ cgraph_node::dump (FILE *f)
       fprintf (f, "  Alias of %s",
 	       lang_hooks.decl_printable_name (thunk.alias, 2));
       if (DECL_ASSEMBLER_NAME_SET_P (thunk.alias))
-        fprintf (f, " (asm: %s)",
+	fprintf (f, " (asm:%s)",
 		 IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk.alias)));
       fprintf (f, "\n");
     }
@@ -3769,5 +3765,71 @@ cgraph_edge::sreal_frequency ()
 			       ? caller->global.inlined_to->count
 			       : caller->count);
 }
+
+/* A stashed copy of "symtab" for use by selftest::symbol_table_test.
+   This needs to be a global so that it can be a GC root, and thus
+   prevent the stashed copy from being garbage-collected if the GC runs
+   during a symbol_table_test.  */
+
+symbol_table *saved_symtab;
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* class selftest::symbol_table_test.  */
+
+/* Constructor.  Store the old value of symtab, and create a new one.  */
+
+symbol_table_test::symbol_table_test ()
+{
+  gcc_assert (saved_symtab == NULL);
+  saved_symtab = symtab;
+  symtab = new (ggc_cleared_alloc <symbol_table> ()) symbol_table ();
+}
+
+/* Destructor.  Restore the old value of symtab.  */
+
+symbol_table_test::~symbol_table_test ()
+{
+  gcc_assert (saved_symtab != NULL);
+  symtab = saved_symtab;
+  saved_symtab = NULL;
+}
+
+/* Verify that symbol_table_test works.  */
+
+static void
+test_symbol_table_test ()
+{
+  /* Simulate running two selftests involving symbol tables.  */
+  for (int i = 0; i < 2; i++)
+    {
+      symbol_table_test stt;
+      tree test_decl = build_decl (UNKNOWN_LOCATION, FUNCTION_DECL,
+				   get_identifier ("test_decl"),
+				   build_function_type_list (void_type_node,
+							     NULL_TREE));
+      cgraph_node *node = cgraph_node::get_create (test_decl);
+      gcc_assert (node);
+
+      /* Verify that the node has order 0 on both iterations,
+	 and thus that nodes have predictable dump names in selftests.  */
+      ASSERT_EQ (node->order, 0);
+      ASSERT_STREQ (node->dump_name (), "test_decl/0");
+    }
+}
+
+/* Run all of the selftests within this file.  */
+
+void
+cgraph_c_tests ()
+{
+  test_symbol_table_test ();
+}
+
+} // namespace selftest
+
+#endif /* CHECKING_P */
 
 #include "gt-cgraph.h"

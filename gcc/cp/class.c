@@ -111,10 +111,6 @@ static class_stack_node_t current_class_stack;
 /* The size of the largest empty class seen in this translation unit.  */
 static GTY (()) tree sizeof_biggest_empty_class;
 
-/* An array of all local classes present in this translation unit, in
-   declaration order.  */
-vec<tree, va_gc> *local_classes;
-
 static tree get_vfield_name (tree);
 static void finish_struct_anon (tree);
 static tree get_vtable_name (tree);
@@ -1955,6 +1951,7 @@ fixup_attribute_variants (tree t)
   unsigned align = TYPE_ALIGN (t);
   bool user_align = TYPE_USER_ALIGN (t);
   bool may_alias = lookup_attribute ("may_alias", attrs);
+  bool packed = TYPE_PACKED (t);
 
   if (may_alias)
     fixup_may_alias (t);
@@ -1972,6 +1969,7 @@ fixup_attribute_variants (tree t)
       else
 	TYPE_USER_ALIGN (variants) = user_align;
       SET_TYPE_ALIGN (variants, valign);
+      TYPE_PACKED (variants) = packed;
       if (may_alias)
 	fixup_may_alias (variants);
     }
@@ -7152,6 +7150,19 @@ finish_struct (tree t, tree attributes)
 	else if (DECL_DECLARES_FUNCTION_P (x))
 	  DECL_IN_AGGR_P (x) = false;
 
+      /* Also add a USING_DECL for operator=.  We know there'll be (at
+	 least) one, but we don't know the signature(s).  We want name
+	 lookup not to fail or recurse into bases.  This isn't added
+	 to the template decl list so we drop this at instantiation
+	 time.  */
+      tree ass_op = build_lang_decl (USING_DECL, assign_op_identifier,
+				     NULL_TREE);
+      USING_DECL_SCOPE (ass_op) = t;
+      DECL_DEPENDENT_P (ass_op) = true;
+      DECL_ARTIFICIAL (ass_op) = true;
+      DECL_CHAIN (ass_op) = TYPE_FIELDS (t);
+      TYPE_FIELDS (t) = ass_op;
+
       TYPE_SIZE (t) = bitsize_zero_node;
       TYPE_SIZE_UNIT (t) = size_zero_node;
       /* COMPLETE_TYPE_P is now true.  */
@@ -7431,7 +7442,6 @@ init_class_processing (void)
   current_class_stack_size = 10;
   current_class_stack
     = XNEWVEC (struct class_stack_node, current_class_stack_size);
-  vec_alloc (local_classes, 8);
   sizeof_biggest_empty_class = size_zero_node;
 
   ridpointers[(int) RID_PUBLIC] = access_public_node;

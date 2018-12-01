@@ -597,7 +597,77 @@ define_quad_builtin (const char *name, tree type, bool is_const)
   return fndecl;
 }
 
+/* Add SIMD attribute for FNDECL built-in if the built-in
+   name is in VECTORIZED_BUILTINS.  */
 
+static void
+add_simd_flag_for_built_in (tree fndecl)
+{
+  if (gfc_vectorized_builtins == NULL
+      || fndecl == NULL_TREE)
+    return;
+
+  const char *name = IDENTIFIER_POINTER (DECL_NAME (fndecl));
+  int *clauses = gfc_vectorized_builtins->get (name);
+  if (clauses)
+    {
+      for (unsigned i = 0; i < 3; i++)
+	if (*clauses & (1 << i))
+	  {
+	    gfc_simd_clause simd_type = (gfc_simd_clause)*clauses;
+	    tree omp_clause = NULL_TREE;
+	    if (simd_type == SIMD_NONE)
+	      ; /* No SIMD clause.  */
+	    else
+	      {
+		omp_clause_code code
+		  = (simd_type == SIMD_INBRANCH
+		     ? OMP_CLAUSE_INBRANCH : OMP_CLAUSE_NOTINBRANCH);
+		omp_clause = build_omp_clause (UNKNOWN_LOCATION, code);
+		omp_clause = build_tree_list (NULL_TREE, omp_clause);
+	      }
+
+	    DECL_ATTRIBUTES (fndecl)
+	      = tree_cons (get_identifier ("omp declare simd"), omp_clause,
+			   DECL_ATTRIBUTES (fndecl));
+	  }
+    }
+}
+
+  /* Set SIMD attribute to all built-in functions that are mentioned
+     in gfc_vectorized_builtins vector.  */
+
+void
+gfc_adjust_builtins (void)
+{
+  gfc_intrinsic_map_t *m;
+  for (m = gfc_intrinsic_map;
+       m->id != GFC_ISYM_NONE || m->double_built_in != END_BUILTINS; m++)
+    {
+      add_simd_flag_for_built_in (m->real4_decl);
+      add_simd_flag_for_built_in (m->complex4_decl);
+      add_simd_flag_for_built_in (m->real8_decl);
+      add_simd_flag_for_built_in (m->complex8_decl);
+      add_simd_flag_for_built_in (m->real10_decl);
+      add_simd_flag_for_built_in (m->complex10_decl);
+      add_simd_flag_for_built_in (m->real16_decl);
+      add_simd_flag_for_built_in (m->complex16_decl);
+      add_simd_flag_for_built_in (m->real16_decl);
+      add_simd_flag_for_built_in (m->complex16_decl);
+    }
+
+  /* Release all strings.  */
+  if (gfc_vectorized_builtins != NULL)
+    {
+      for (hash_map<nofree_string_hash, int>::iterator it
+	   = gfc_vectorized_builtins->begin ();
+	   it != gfc_vectorized_builtins->end (); ++it)
+	free (CONST_CAST (char *, (*it).first));
+
+      delete gfc_vectorized_builtins;
+      gfc_vectorized_builtins = NULL;
+    }
+}
 
 /* Initialize function decls for library functions.  The external functions
    are created as required.  Builtin functions are added here.  */
@@ -5177,6 +5247,219 @@ gfc_conv_intrinsic_minmaxloc (gfc_se * se, gfc_expr * expr, enum tree_code op)
   se->expr = convert (type, pos);
 }
 
+/* Emit code for findloc.  */
+
+static void
+gfc_conv_intrinsic_findloc (gfc_se *se, gfc_expr *expr)
+{
+  gfc_actual_arglist *array_arg, *value_arg, *dim_arg, *mask_arg,
+    *kind_arg, *back_arg;
+  gfc_expr *value_expr;
+  int ikind;
+  tree resvar;
+  stmtblock_t block;
+  stmtblock_t body;
+  stmtblock_t loopblock;
+  tree type;
+  tree tmp;
+  tree found;
+  tree forward_branch;
+  tree back_branch;
+  gfc_loopinfo loop;
+  gfc_ss *arrayss;
+  gfc_ss *maskss;
+  gfc_se arrayse;
+  gfc_se valuese;
+  gfc_se maskse;
+  gfc_se backse;
+  tree exit_label;
+  gfc_expr *maskexpr;
+  tree offset;
+  int i;
+
+  array_arg = expr->value.function.actual;
+  value_arg = array_arg->next;
+  dim_arg   = value_arg->next;
+  mask_arg  = dim_arg->next;
+  kind_arg  = mask_arg->next;
+  back_arg  = kind_arg->next;
+
+  /* Remove kind and set ikind.  */
+  if (kind_arg->expr)
+    {
+      ikind = mpz_get_si (kind_arg->expr->value.integer);
+      gfc_free_expr (kind_arg->expr);
+      kind_arg->expr = NULL;
+    }
+  else
+    ikind = gfc_default_integer_kind;
+
+  value_expr = value_arg->expr;
+
+  /* Unless it's a string, pass VALUE by value.  */
+  if (value_expr->ts.type != BT_CHARACTER)
+    value_arg->name = "%VAL";
+
+  /* Pass BACK argument by value.  */
+  back_arg->name = "%VAL";
+
+  /* Call the library if we have a character function or if
+     rank > 0.  */
+  if (se->ss || array_arg->expr->ts.type == BT_CHARACTER)
+    {
+      se->ignore_optional = 1;
+      if (expr->rank == 0)
+	{
+	  /* Remove dim argument.  */
+	  gfc_free_expr (dim_arg->expr);
+	  dim_arg->expr = NULL;
+	}
+      gfc_conv_intrinsic_funcall (se, expr);
+      return;
+    }
+
+  type = gfc_get_int_type (ikind);
+
+  /* Initialize the result.  */
+  resvar = gfc_create_var (gfc_array_index_type, "pos");
+  gfc_add_modify (&se->pre, resvar, build_int_cst (gfc_array_index_type, 0));
+  offset = gfc_create_var (gfc_array_index_type, "offset");
+
+  maskexpr = mask_arg->expr;
+
+  /*  Generate two loops, one for BACK=.true. and one for BACK=.false.  */
+
+  for (i = 0 ; i < 2; i++)
+    {
+      /* Walk the arguments.  */
+      arrayss = gfc_walk_expr (array_arg->expr);
+      gcc_assert (arrayss != gfc_ss_terminator);
+
+      if (maskexpr && maskexpr->rank != 0)
+	{
+	  maskss = gfc_walk_expr (maskexpr);
+	  gcc_assert (maskss != gfc_ss_terminator);
+	}
+      else
+	maskss = NULL;
+
+      /* Initialize the scalarizer.  */
+      gfc_init_loopinfo (&loop);
+      exit_label = gfc_build_label_decl (NULL_TREE);
+      TREE_USED (exit_label) = 1;
+      gfc_add_ss_to_loop (&loop, arrayss);
+      if (maskss)
+	gfc_add_ss_to_loop (&loop, maskss);
+
+      /* Initialize the loop.  */
+      gfc_conv_ss_startstride (&loop);
+      gfc_conv_loop_setup (&loop, &expr->where);
+
+      /* Calculate the offset.  */
+      tmp = fold_build2_loc (input_location, MINUS_EXPR, gfc_array_index_type,
+			     gfc_index_one_node, loop.from[0]);
+      gfc_add_modify (&loop.pre, offset, tmp);
+
+      gfc_mark_ss_chain_used (arrayss, 1);
+      if (maskss)
+	gfc_mark_ss_chain_used (maskss, 1);
+
+      /* The first loop is for BACK=.true.  */
+      if (i == 0)
+	loop.reverse[0] = GFC_REVERSE_SET;
+
+      /* Generate the loop body.  */
+      gfc_start_scalarized_body (&loop, &body);
+
+      /* If we have an array mask, only add the element if it is
+	 set.  */
+      if (maskss)
+	{
+	  gfc_init_se (&maskse, NULL);
+	  gfc_copy_loopinfo_to_se (&maskse, &loop);
+	  maskse.ss = maskss;
+	  gfc_conv_expr_val (&maskse, maskexpr);
+	  gfc_add_block_to_block (&body, &maskse.pre);
+	}
+
+      /* If the condition matches then set the return value.  */
+      gfc_start_block (&block);
+
+      /* Add the offset.  */
+      tmp = fold_build2_loc (input_location, PLUS_EXPR,
+			     TREE_TYPE (resvar),
+			     loop.loopvar[0], offset);
+      gfc_add_modify (&block, resvar, tmp);
+      /* And break out of the loop.  */
+      tmp = build1_v (GOTO_EXPR, exit_label);
+      gfc_add_expr_to_block (&block, tmp);
+
+      found = gfc_finish_block (&block);
+
+      /* Check this element.  */
+      gfc_init_se (&arrayse, NULL);
+      gfc_copy_loopinfo_to_se (&arrayse, &loop);
+      arrayse.ss = arrayss;
+      gfc_conv_expr_val (&arrayse, array_arg->expr);
+      gfc_add_block_to_block (&body, &arrayse.pre);
+
+      gfc_init_se (&valuese, NULL);
+      gfc_conv_expr_val (&valuese, value_arg->expr);
+      gfc_add_block_to_block (&body, &valuese.pre);
+
+      tmp = fold_build2_loc (input_location, EQ_EXPR, logical_type_node,
+			     arrayse.expr, valuese.expr);
+
+      tmp = build3_v (COND_EXPR, tmp, found, build_empty_stmt (input_location));
+      if (maskss)
+	tmp = build3_v (COND_EXPR, maskse.expr, tmp,
+			build_empty_stmt (input_location));
+
+      gfc_add_expr_to_block (&body, tmp);
+      gfc_add_block_to_block (&body, &arrayse.post);
+
+      gfc_trans_scalarizing_loops (&loop, &body);
+
+      /* Add the exit label.  */
+      tmp = build1_v (LABEL_EXPR, exit_label);
+      gfc_add_expr_to_block (&loop.pre, tmp);
+      gfc_start_block (&loopblock);
+      gfc_add_block_to_block (&loopblock, &loop.pre);
+      gfc_add_block_to_block (&loopblock, &loop.post);
+      if (i == 0)
+	forward_branch = gfc_finish_block (&loopblock);
+      else
+	back_branch = gfc_finish_block (&loopblock);
+
+      gfc_cleanup_loop (&loop);
+    }
+
+  /* Enclose the two loops in an IF statement.  */
+
+  gfc_init_se (&backse, NULL);
+  gfc_conv_expr_val (&backse, back_arg->expr);
+  gfc_add_block_to_block (&se->pre, &backse.pre);
+  tmp = build3_v (COND_EXPR, backse.expr, forward_branch, back_branch);
+
+  /* For a scalar mask, enclose the loop in an if statement.  */
+  if (maskexpr && maskss == NULL)
+    {
+      tree if_stmt;
+      gfc_init_se (&maskse, NULL);
+      gfc_conv_expr_val (&maskse, maskexpr);
+      gfc_init_block (&block);
+      gfc_add_expr_to_block (&block, maskse.expr);
+      if_stmt = build3_v (COND_EXPR, maskse.expr, tmp,
+			  build_empty_stmt (input_location));
+      gfc_add_expr_to_block (&block, if_stmt);
+      tmp = gfc_finish_block (&block);
+    }
+
+  gfc_add_expr_to_block (&se->pre, tmp);
+  se->expr = convert (type, resvar);
+
+}
+
 /* Emit code for minval or maxval intrinsic.  There are many different cases
    we need to handle.  For performance reasons we sometimes create two
    loops instead of one, where the second one is much simpler.
@@ -9015,6 +9298,10 @@ gfc_conv_intrinsic_function (gfc_se * se, gfc_expr * expr)
 	      conv_generic_with_optional_char_arg (se, expr, 1, 3);
 	      break;
 
+	    case GFC_ISYM_FINDLOC:
+	      gfc_conv_intrinsic_findloc (se, expr);
+	      break;
+
 	    case GFC_ISYM_MINLOC:
 	      gfc_conv_intrinsic_minmaxloc (se, expr, LT_EXPR);
 	      break;
@@ -9452,6 +9739,10 @@ gfc_conv_intrinsic_function (gfc_se * se, gfc_expr * expr)
 
     case GFC_ISYM_MAXLOC:
       gfc_conv_intrinsic_minmaxloc (se, expr, GT_EXPR);
+      break;
+
+    case GFC_ISYM_FINDLOC:
+      gfc_conv_intrinsic_findloc (se, expr);
       break;
 
     case GFC_ISYM_MAXVAL:
@@ -9933,6 +10224,7 @@ gfc_is_intrinsic_libcall (gfc_expr * expr)
     case GFC_ISYM_ALL:
     case GFC_ISYM_ANY:
     case GFC_ISYM_COUNT:
+    case GFC_ISYM_FINDLOC:
     case GFC_ISYM_JN2:
     case GFC_ISYM_IANY:
     case GFC_ISYM_IALL:

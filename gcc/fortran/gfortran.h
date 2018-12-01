@@ -437,6 +437,7 @@ enum gfc_isym_id
   GFC_ISYM_FE_RUNTIME_ERROR,
   GFC_ISYM_FGET,
   GFC_ISYM_FGETC,
+  GFC_ISYM_FINDLOC,
   GFC_ISYM_FLOOR,
   GFC_ISYM_FLUSH,
   GFC_ISYM_FNUM,
@@ -951,7 +952,7 @@ typedef struct gfc_file
 
 typedef struct gfc_linebuf
 {
-  source_location location;
+  location_t location;
   struct gfc_file *file;
   struct gfc_linebuf *next;
 
@@ -1344,7 +1345,7 @@ typedef struct gfc_omp_clauses
   gfc_expr_list *wait_list;
   gfc_expr_list *tile_list;
   unsigned async:1, gang:1, worker:1, vector:1, seq:1, independent:1;
-  unsigned wait:1, par_auto:1, gang_static:1;
+  unsigned par_auto:1, gang_static:1;
   unsigned if_present:1, finalize:1;
   locus loc;
 
@@ -1936,7 +1937,10 @@ gfc_array_ref;
    before the component component.  */
 
 enum ref_type
-  { REF_ARRAY, REF_COMPONENT, REF_SUBSTRING };
+  { REF_ARRAY, REF_COMPONENT, REF_SUBSTRING, REF_INQUIRY };
+
+enum inquiry_type
+  { INQUIRY_RE, INQUIRY_IM, INQUIRY_KIND, INQUIRY_LEN };
 
 typedef struct gfc_ref
 {
@@ -1959,6 +1963,8 @@ typedef struct gfc_ref
       gfc_charlen *length;
     }
     ss;
+
+    inquiry_type i;
 
   }
   u;
@@ -2001,6 +2007,7 @@ typedef union
   bool (*f2)(struct gfc_expr *, struct gfc_expr *);
   bool (*f3)(struct gfc_expr *, struct gfc_expr *, struct gfc_expr *);
   bool (*f5ml)(gfc_actual_arglist *);
+  bool (*f6fl)(gfc_actual_arglist *);
   bool (*f3red)(gfc_actual_arglist *);
   bool (*f4)(struct gfc_expr *, struct gfc_expr *, struct gfc_expr *,
 	    struct gfc_expr *);
@@ -2025,6 +2032,9 @@ typedef union
   struct gfc_expr *(*f5)(struct gfc_expr *, struct gfc_expr *,
 			 struct gfc_expr *, struct gfc_expr *,
 			 struct gfc_expr *);
+  struct gfc_expr *(*f6)(struct gfc_expr *, struct gfc_expr *,
+			 struct gfc_expr *, struct gfc_expr *,
+			 struct gfc_expr *, struct gfc_expr *);
   struct gfc_expr *(*cc)(struct gfc_expr *, bt, int);
 }
 gfc_simplify_f;
@@ -2045,6 +2055,9 @@ typedef union
 	     struct gfc_expr *, struct gfc_expr *);
   void (*f5)(struct gfc_expr *, struct gfc_expr *, struct gfc_expr *,
 	     struct gfc_expr *, struct gfc_expr *, struct gfc_expr *);
+  void (*f6)(struct gfc_expr *, struct gfc_expr *, struct gfc_expr *,
+	     struct gfc_expr *, struct gfc_expr *, struct gfc_expr *,
+	     struct gfc_expr *);
   void (*s1)(struct gfc_code *);
 }
 gfc_resolve_f;
@@ -2148,6 +2161,11 @@ typedef struct gfc_expr
      to a BLAS call.  */
 
   unsigned int external_blas : 1;
+
+  /* Set this if resolution has already happened. It could be harmful
+     if done again.  */
+
+  unsigned int do_not_resolve_again : 1;
 
   /* If an expression comes from a Hollerith constant or compile-time
      evaluation of a transfer statement, it may have a prescribed target-
@@ -2746,6 +2764,27 @@ bool gfc_in_match_data (void);
 match gfc_match_char_spec (gfc_typespec *);
 extern int directive_unroll;
 
+/* SIMD clause enum.  */
+enum gfc_simd_clause
+{
+  SIMD_NONE = (1 << 0),
+  SIMD_INBRANCH = (1 << 1),
+  SIMD_NOTINBRANCH = (1 << 2)
+};
+
+/* Tuple for parsing of vectorized built-ins.  */
+struct gfc_vect_builtin_tuple
+{
+  gfc_vect_builtin_tuple (const char *n, gfc_simd_clause t)
+    : name (n), simd_type (t) {}
+
+  const char *name;
+  gfc_simd_clause simd_type;
+};
+
+/* Map of middle-end built-ins that should be vectorized.  */
+extern hash_map<nofree_string_hash, int> *gfc_vectorized_builtins;
+
 /* Handling Parameterized Derived Types  */
 bool gfc_insert_kind_parameter_exprs (gfc_expr *);
 bool gfc_insert_parameter_exprs (gfc_expr *, gfc_actual_arglist *);
@@ -3094,7 +3133,7 @@ extern bool gfc_init_expr_flag;
 void gfc_intrinsic_init_1 (void);
 void gfc_intrinsic_done_1 (void);
 
-char gfc_type_letter (bt);
+char gfc_type_letter (bt, bool logical_equals_int = false);
 gfc_symbol * gfc_get_intrinsic_sub_symbol (const char *);
 bool gfc_convert_type (gfc_expr *, gfc_typespec *, int);
 bool gfc_convert_type_warn (gfc_expr *, gfc_typespec *, int, int);
@@ -3201,7 +3240,8 @@ int gfc_kind_max (gfc_expr *, gfc_expr *);
 
 bool gfc_check_conformance (gfc_expr *, gfc_expr *, const char *, ...) ATTRIBUTE_PRINTF_3;
 bool gfc_check_assign (gfc_expr *, gfc_expr *, int, bool c = true);
-bool gfc_check_pointer_assign (gfc_expr *, gfc_expr *);
+bool gfc_check_pointer_assign (gfc_expr *lvalue, gfc_expr *rvalue,
+  bool suppres_type_test = false);
 bool gfc_check_assign_symbol (gfc_symbol *, gfc_component *, gfc_expr *);
 
 gfc_expr *gfc_build_default_init_expr (gfc_typespec *, locus *);
@@ -3483,5 +3523,6 @@ bool gfc_is_reallocatable_lhs (gfc_expr *);
 /* trans-decl.c */
 
 void finish_oacc_declare (gfc_namespace *, gfc_symbol *, bool);
+void gfc_adjust_builtins (void);
 
 #endif /* GCC_GFORTRAN_H  */

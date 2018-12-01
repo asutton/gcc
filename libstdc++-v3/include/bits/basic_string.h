@@ -744,20 +744,29 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	// Replace allocator if POCMA is true.
 	std::__alloc_on_move(_M_get_allocator(), __str._M_get_allocator());
 
-	if (!__str._M_is_local()
-	    && (_Alloc_traits::_S_propagate_on_move_assign()
-	      || _Alloc_traits::_S_always_equal()))
+	if (__str._M_is_local())
 	  {
+	    // We've always got room for a short string, just copy it.
+	    if (__str.size())
+	      this->_S_copy(_M_data(), __str._M_data(), __str.size());
+	    _M_set_length(__str.size());
+	  }
+	else if (_Alloc_traits::_S_propagate_on_move_assign()
+	    || _Alloc_traits::_S_always_equal()
+	    || _M_get_allocator() == __str._M_get_allocator())
+	  {
+	    // Just move the allocated pointer, our allocator can free it.
 	    pointer __data = nullptr;
 	    size_type __capacity;
 	    if (!_M_is_local())
 	      {
 		if (_Alloc_traits::_S_always_equal())
 		  {
+		    // __str can reuse our existing storage.
 		    __data = _M_data();
 		    __capacity = _M_allocated_capacity;
 		  }
-		else
+		else // __str can't use it, so free it.
 		  _M_destroy(_M_allocated_capacity);
 	      }
 
@@ -772,8 +781,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	    else
 	      __str._M_data(__str._M_local_buf);
 	  }
-	else
-	    assign(__str);
+	else // Need to do a deep copy
+	  assign(__str);
 	__str.clear();
 	return *this;
       }
@@ -3028,6 +3037,32 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       int
       compare(size_type __pos, size_type __n1, const _CharT* __s,
 	      size_type __n2) const;
+
+#if __cplusplus > 201703L
+      bool
+      starts_with(basic_string_view<_CharT, _Traits> __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      starts_with(_CharT __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      starts_with(const _CharT* __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      ends_with(basic_string_view<_CharT, _Traits> __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+
+      bool
+      ends_with(_CharT __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+
+      bool
+      ends_with(const _CharT* __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+#endif // C++20
 
       // Allow basic_stringbuf::__xfer_bufptrs to call _M_length:
       template<typename, typename, typename> friend class basic_stringbuf;
@@ -5874,6 +5909,32 @@ _GLIBCXX_END_NAMESPACE_CXX11
       int
       compare(size_type __pos, size_type __n1, const _CharT* __s,
 	      size_type __n2) const;
+
+#if __cplusplus > 201703L
+      bool
+      starts_with(basic_string_view<_CharT, _Traits> __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      starts_with(_CharT __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      starts_with(const _CharT* __x) const noexcept
+      { return __sv_type(this->data(), this->size()).starts_with(__x); }
+
+      bool
+      ends_with(basic_string_view<_CharT, _Traits> __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+
+      bool
+      ends_with(_CharT __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+
+      bool
+      ends_with(const _CharT* __x) const noexcept
+      { return __sv_type(this->data(), this->size()).ends_with(__x); }
+#endif // C++20
 
 # ifdef _GLIBCXX_TM_TS_INTERNAL
       friend void

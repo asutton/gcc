@@ -397,7 +397,7 @@ DEFPARAM(PARAM_SMS_LOOP_AVERAGE_COUNT_THRESHOLD,
 DEFPARAM(HOT_BB_COUNT_FRACTION,
 	 "hot-bb-count-fraction",
 	 "Select fraction of the maximal count of repetitions of basic block in program given basic "
-	 "block needs to have to be considered hot (used in non-LTO mode)",
+	 "block needs to have to be considered hot (used in non-LTO mode).",
 	 10000, 0, 0)
 DEFPARAM(HOT_BB_COUNT_WS_PERMILLE,
 	 "hot-bb-count-ws-permille",
@@ -1103,7 +1103,7 @@ DEFPARAM (PARAM_IPA_MAX_AA_STEPS,
 DEFPARAM (PARAM_LTO_PARTITIONS,
 	  "lto-partitions",
 	  "Number of partitions the program should be split to.",
-	  32, 1, 0)
+	  128, 1, 0)
 
 DEFPARAM (MIN_PARTITION_SIZE,
 	  "lto-min-partition",
@@ -1359,6 +1359,11 @@ DEFPARAM(PARAM_AVOID_FMA_MAX_BITS,
 	 "avoid-fma-max-bits",
 	 "Maximum number of bits for which we avoid creating FMAs.",
 	 0, 0, 512)
+
+DEFPARAM(PARAM_LOGICAL_OP_NON_SHORT_CIRCUIT,
+	 "logical-op-non-short-circuit",
+	 "True if a non-short-circuit operation is optimal.",
+	 -1, -1, 1)
 
 /*
 

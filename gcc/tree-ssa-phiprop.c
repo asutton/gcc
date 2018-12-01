@@ -159,7 +159,7 @@ phiprop_insert_phi (basic_block bb, gphi *phi, gimple *use_stmt,
     {
       tree old_arg, new_var;
       gassign *tmp;
-      source_location locus;
+      location_t locus;
 
       old_arg = PHI_ARG_DEF_FROM_EDGE (phi, e);
       locus = gimple_phi_arg_location_from_edge (phi, e);
@@ -339,7 +339,7 @@ propagate_with_phi (basic_block bb, gphi *phi, struct phiprop_d *phivn,
 		|| types_compatible_p
 		     (TREE_TYPE (gimple_assign_lhs (use_stmt)), type))
 	    /* We cannot replace a load that may throw or is volatile.  */
-	    && !stmt_can_throw_internal (use_stmt)))
+	    && !stmt_can_throw_internal (cfun, use_stmt)))
 	continue;
 
       /* Check if we can move the loads.  The def stmt of the virtual use

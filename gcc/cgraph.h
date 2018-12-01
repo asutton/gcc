@@ -968,11 +968,13 @@ public:
 			     cgraph_node *new_inlined_to,
 			     bitmap args_to_skip, const char *suffix = NULL);
 
-  /* Create callgraph node clone with new declaration.  The actual body will
-     be copied later at compilation stage.  */
+  /* Create callgraph node clone with new declaration.  The actual body will be
+     copied later at compilation stage.  The name of the new clone will be
+     constructed from the name of the original node, SUFFIX and NUM_SUFFIX.  */
   cgraph_node *create_virtual_clone (vec<cgraph_edge *> redirect_callers,
 				     vec<ipa_replace_map *, va_gc> *tree_map,
-				     bitmap args_to_skip, const char * suffix);
+				     bitmap args_to_skip, const char * suffix,
+				     unsigned num_suffix);
 
   /* cgraph node being removed from symbol table; see if its entry can be
    replaced by other inline clone.  */
@@ -2382,8 +2384,13 @@ tree thunk_adjust (gimple_stmt_iterator *, tree, bool, HOST_WIDE_INT, tree,
 		   HOST_WIDE_INT);
 /* In cgraphclones.c  */
 
-tree clone_function_name_1 (const char *, const char *);
-tree clone_function_name (tree decl, const char *);
+tree clone_function_name_numbered (const char *name, const char *suffix);
+tree clone_function_name_numbered (tree decl, const char *suffix);
+tree clone_function_name (const char *name, const char *suffix,
+			  unsigned long number);
+tree clone_function_name (tree decl, const char *suffix,
+			  unsigned long number);
+tree clone_function_name (tree decl, const char *suffix);
 
 void tree_function_versioning (tree, tree, vec<ipa_replace_map *, va_gc> *,
 			       bool, bitmap, bool, bitmap, basic_block);
@@ -2400,7 +2407,7 @@ void record_references_in_initializer (tree, bool);
 
 /* In ipa.c  */
 void cgraph_build_static_cdtor (char which, tree body, int priority);
-bool ipa_discover_readonly_nonaddressable_vars (void);
+bool ipa_discover_variable_flags (void);
 
 /* In varpool.c  */
 tree ctor_for_folding (tree);
@@ -3349,5 +3356,28 @@ xstrdup_for_dump (const char *transient_str)
 {
   return ggc_strdup (transient_str);
 }
+
+extern GTY(()) symbol_table *saved_symtab;
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* An RAII-style class for use in selftests for temporarily using a different
+   symbol_table, so that such tests can be isolated from each other.  */
+
+class symbol_table_test
+{
+ public:
+  /* Constructor.  Override "symtab".  */
+  symbol_table_test ();
+
+  /* Destructor.  Restore the saved_symtab.  */
+  ~symbol_table_test ();
+};
+
+} // namespace selftest
+
+#endif /* CHECKING_P */
 
 #endif  /* GCC_CGRAPH_H  */

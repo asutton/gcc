@@ -359,14 +359,20 @@ address_eliminator::address_eliminator (struct address_info *ad)
   if (m_base_loc != NULL)
     {
       m_base_reg = *m_base_loc;
-      lra_eliminate_reg_if_possible (m_base_loc);
+      /* If we have non-legitimate address which is decomposed not in
+	 the way we expected, don't do elimination here.  In such case
+	 the address will be reloaded and elimination will be done in
+	 reload insn finally.  */
+      if (REG_P (m_base_reg))
+	lra_eliminate_reg_if_possible (m_base_loc);
       if (m_ad->base_term2 != NULL)
 	*m_ad->base_term2 = *m_ad->base_term;
     }
   if (m_index_loc != NULL)
     {
       m_index_reg = *m_index_loc;
-      lra_eliminate_reg_if_possible (m_index_loc);
+      if (REG_P (m_index_reg))
+	lra_eliminate_reg_if_possible (m_index_loc);
     }
 }
 
@@ -1969,6 +1975,7 @@ process_alt_operands (int only_alternative)
       if (!TEST_BIT (preferred, nalt))
 	continue;
 
+      bool matching_early_clobber[MAX_RECOG_OPERANDS];
       curr_small_class_check++;
       overall = losers = addr_losers = 0;
       static_reject = reject = reload_nregs = reload_sum = 0;
@@ -1980,6 +1987,7 @@ process_alt_operands (int only_alternative)
 	    fprintf (lra_dump_file,
 		     "            Staticly defined alt reject+=%d\n", inc);
 	  static_reject += inc;
+	  matching_early_clobber[nop] = 0;
 	}
       reject += static_reject;
       early_clobbered_regs_num = 0;
@@ -2144,9 +2152,32 @@ process_alt_operands (int only_alternative)
 		      }
 		    else
 		      {
-			/* Operands don't match.  Both operands must
-			   allow a reload register, otherwise we
-			   cannot make them match.  */
+			/* Operands don't match.  If the operands are
+			   different user defined explicit hard registers,
+			   then we cannot make them match.  */
+			if ((REG_P (*curr_id->operand_loc[nop])
+			     || SUBREG_P (*curr_id->operand_loc[nop]))
+			    && (REG_P (*curr_id->operand_loc[m])
+				|| SUBREG_P (*curr_id->operand_loc[m])))
+			  {
+			    rtx nop_reg = *curr_id->operand_loc[nop];
+			    if (SUBREG_P (nop_reg))
+			      nop_reg = SUBREG_REG (nop_reg);
+			    rtx m_reg = *curr_id->operand_loc[m];
+			    if (SUBREG_P (m_reg))
+			      m_reg = SUBREG_REG (m_reg);
+
+			    if (REG_P (nop_reg)
+				&& HARD_REGISTER_P (nop_reg)
+				&& REG_USERVAR_P (nop_reg)
+				&& REG_P (m_reg)
+				&& HARD_REGISTER_P (m_reg)
+				&& REG_USERVAR_P (m_reg))
+			      break;
+			  }
+
+			/* Both operands must allow a reload register,
+			   otherwise we cannot make them match.  */
 			if (curr_alt[m] == NO_REGS)
 			  break;
 			/* Retroactively mark the operand we had to
@@ -2175,7 +2206,11 @@ process_alt_operands (int only_alternative)
 				 "            %d Matching earlyclobber alt:"
 				 " reject--\n",
 				 nop);
-			    reject--;
+			    if (!matching_early_clobber[m])
+			      {
+				reject--;
+				matching_early_clobber[m] = 1;
+			      }
 			  }
 			/* Otherwise we prefer no matching
 			   alternatives because it gives more freedom
@@ -2904,32 +2939,41 @@ process_alt_operands (int only_alternative)
 		if (first_conflict_j < 0)
 		  first_conflict_j = j;
 		last_conflict_j = j;
+		/* Both the earlyclobber operand and conflicting operand
+		   cannot both be user defined hard registers.  */
+		if (HARD_REGISTER_P (operand_reg[i])
+		    && REG_USERVAR_P (operand_reg[i])
+		    && operand_reg[j] != NULL_RTX
+		    && HARD_REGISTER_P (operand_reg[j])
+		    && REG_USERVAR_P (operand_reg[j]))
+		  fatal_insn ("unable to generate reloads for "
+			      "impossible constraints:", curr_insn);
 	      }
 	  if (last_conflict_j < 0)
 	    continue;
-	  /* If earlyclobber operand conflicts with another
-	     non-matching operand which is actually the same register
-	     as the earlyclobber operand, it is better to reload the
-	     another operand as an operand matching the earlyclobber
-	     operand can be also the same.  */
-	  if (first_conflict_j == last_conflict_j
-	      && operand_reg[last_conflict_j] != NULL_RTX
-	      && ! curr_alt_match_win[last_conflict_j]
-	      && REGNO (operand_reg[i]) == REGNO (operand_reg[last_conflict_j]))
+
+	  /* If an earlyclobber operand conflicts with another non-matching
+	     operand (ie, they have been assigned the same hard register),
+	     then it is better to reload the other operand, as there may
+	     exist yet another operand with a matching constraint associated
+	     with the earlyclobber operand.  However, if one of the operands
+	     is an explicit use of a hard register, then we must reload the
+	     other non-hard register operand.  */
+	  if (HARD_REGISTER_P (operand_reg[i])
+	      || (first_conflict_j == last_conflict_j
+		  && operand_reg[last_conflict_j] != NULL_RTX
+		  && !curr_alt_match_win[last_conflict_j]
+		  && !HARD_REGISTER_P (operand_reg[last_conflict_j])))
 	    {
 	      curr_alt_win[last_conflict_j] = false;
 	      curr_alt_dont_inherit_ops[curr_alt_dont_inherit_ops_num++]
 		= last_conflict_j;
 	      losers++;
-	      /* Early clobber was already reflected in REJECT. */
-	      lra_assert (reject > 0);
 	      if (lra_dump_file != NULL)
 		fprintf
 		  (lra_dump_file,
 		   "            %d Conflict early clobber reload: reject--\n",
 		   i);
-	      reject--;
-	      overall += LRA_LOSER_COST_FACTOR - 1;
 	    }
 	  else
 	    {
@@ -2953,17 +2997,21 @@ process_alt_operands (int only_alternative)
 		}
 	      curr_alt_win[i] = curr_alt_match_win[i] = false;
 	      losers++;
-	      /* Early clobber was already reflected in REJECT. */
-	      lra_assert (reject > 0);
 	      if (lra_dump_file != NULL)
 		fprintf
 		  (lra_dump_file,
 		   "            %d Matched conflict early clobber reloads: "
 		   "reject--\n",
 		   i);
-	      reject--;
-	      overall += LRA_LOSER_COST_FACTOR - 1;
 	    }
+	  /* Early clobber was already reflected in REJECT. */
+	  if (!matching_early_clobber[i])
+	    {
+	      lra_assert (reject > 0);
+	      reject--;
+	      matching_early_clobber[i] = 1;
+	    }
+	  overall += LRA_LOSER_COST_FACTOR - 1;
 	}
       if (lra_dump_file != NULL)
 	fprintf (lra_dump_file, "          alt=%d,overall=%d,losers=%d,rld_nregs=%d\n",
@@ -5696,12 +5744,15 @@ spill_hard_reg_in_range (int regno, enum reg_class rclass, rtx_insn *from, rtx_i
 	continue;
       for (insn = from; insn != NEXT_INSN (to); insn = NEXT_INSN (insn))
 	{
-	  lra_insn_recog_data_t id = lra_insn_recog_data[uid = INSN_UID (insn)];
-	  struct lra_static_insn_data *static_id = id->insn_static_data;
+	  struct lra_static_insn_data *static_id;
 	  struct lra_insn_reg *reg;
 
-	  if (bitmap_bit_p (&lra_reg_info[hard_regno].insn_bitmap, uid))
+	  if (!INSN_P (insn))
+	      continue;
+	  if (bitmap_bit_p (&lra_reg_info[hard_regno].insn_bitmap,
+			    INSN_UID (insn)))
 	    break;
+	  static_id = lra_get_insn_recog_data (insn)->insn_static_data;
 	  for (reg = static_id->hard_regs; reg != NULL; reg = reg->next)
 	    if (reg->regno == hard_regno)
 	      break;

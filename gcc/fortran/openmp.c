@@ -1710,22 +1710,17 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 	      locus old_loc2 = gfc_current_locus;
 	      do
 		{
-		  if (!c->sched_simd
-		      && gfc_match ("simd") == MATCH_YES)
+		  if (gfc_match ("simd") == MATCH_YES)
 		    {
 		      c->sched_simd = true;
 		      nmodifiers++;
 		    }
-		  else if (!c->sched_monotonic
-			   && !c->sched_nonmonotonic
-			   && gfc_match ("monotonic") == MATCH_YES)
+		  else if (gfc_match ("monotonic") == MATCH_YES)
 		    {
 		      c->sched_monotonic = true;
 		      nmodifiers++;
 		    }
-		  else if (!c->sched_monotonic
-			   && !c->sched_nonmonotonic
-			   && gfc_match ("nonmonotonic") == MATCH_YES)
+		  else if (gfc_match ("nonmonotonic") == MATCH_YES)
 		    {
 		      c->sched_nonmonotonic = true;
 		      nmodifiers++;
@@ -1736,7 +1731,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 			gfc_current_locus = old_loc2;
 		      break;
 		    }
-		  if (nmodifiers == 0
+		  if (nmodifiers == 1
 		      && gfc_match (" , ") == MATCH_YES)
 		    continue;
 		  else if (gfc_match (" : ") == MATCH_YES)
@@ -1881,10 +1876,8 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 	  break;
 	case 'w':
 	  if ((mask & OMP_CLAUSE_WAIT)
-	      && !c->wait
 	      && gfc_match ("wait") == MATCH_YES)
 	    {
-	      c->wait = true;
 	      match m = match_oacc_expr_list (" (", &c->wait_list, false);
 	      if (m == MATCH_ERROR)
 		{
@@ -4075,6 +4068,30 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 	gfc_warning (0, "INTEGER expression of SCHEDULE clause's chunk_size "
 		     "at %L must be positive", &expr->where);
     }
+  if (omp_clauses->sched_kind != OMP_SCHED_NONE
+      && omp_clauses->sched_nonmonotonic)
+    {
+      if (omp_clauses->sched_kind != OMP_SCHED_DYNAMIC
+	  && omp_clauses->sched_kind != OMP_SCHED_GUIDED)
+	{
+	  const char *p;
+	  switch (omp_clauses->sched_kind)
+	    {
+	    case OMP_SCHED_STATIC: p = "STATIC"; break;
+	    case OMP_SCHED_RUNTIME: p = "RUNTIME"; break;
+	    case OMP_SCHED_AUTO: p = "AUTO"; break;
+	    default: gcc_unreachable ();
+	    }
+	  gfc_error ("NONMONOTONIC modifier specified for %s schedule kind "
+		     "at %L", p, &code->loc);
+	}
+      else if (omp_clauses->sched_monotonic)
+	gfc_error ("Both MONOTONIC and NONMONOTONIC schedule modifiers "
+		   "specified at %L", &code->loc);
+      else if (omp_clauses->ordered)
+	gfc_error ("NONMONOTONIC schedule modifier specified with ORDERED "
+		   "clause at %L", &code->loc);
+    }
 
   /* Check that no symbol appears on multiple clauses, except that
      a symbol can appear on both firstprivate and lastprivate.  */
@@ -4761,10 +4778,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
     resolve_positive_int_expr (omp_clauses->worker_expr, "WORKER");
   if (omp_clauses->vector_expr)
     resolve_positive_int_expr (omp_clauses->vector_expr, "VECTOR");
-  if (omp_clauses->wait)
-    if (omp_clauses->wait_list)
-      for (el = omp_clauses->wait_list; el; el = el->next)
-	resolve_scalar_int_expr (el->expr, "WAIT");
+  for (el = omp_clauses->wait_list; el; el = el->next)
+    resolve_scalar_int_expr (el->expr, "WAIT");
   if (omp_clauses->collapse && omp_clauses->tile_list)
     gfc_error ("Incompatible use of TILE and COLLAPSE at %L", &code->loc);
   if (omp_clauses->depend_source && code->op != EXEC_OMP_ORDERED)

@@ -288,7 +288,7 @@ test_writing_strings ()
   assert_print_eq (contains_quotes, "\"before \\\"quoted\\\" after\"");
 }
 
-/* Verify that JSON strings are written correctly.  */
+/* Verify that JSON literals are written correctly.  */
 
 static void
 test_writing_literals ()
@@ -296,6 +296,9 @@ test_writing_literals ()
   assert_print_eq (literal (JSON_TRUE), "true");
   assert_print_eq (literal (JSON_FALSE), "false");
   assert_print_eq (literal (JSON_NULL), "null");
+
+  assert_print_eq (literal (true), "true");
+  assert_print_eq (literal (false), "false");
 }
 
 /* Run all of the selftests within this file.  */

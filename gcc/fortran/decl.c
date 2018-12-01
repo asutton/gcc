@@ -98,6 +98,9 @@ bool gfc_matching_function;
 /* Set upon parsing a !GCC$ unroll n directive for use in the next loop.  */
 int directive_unroll = -1;
 
+/* Map of middle-end built-ins that should be vectorized.  */
+hash_map<nofree_string_hash, int> *gfc_vectorized_builtins;
+
 /* If a kind expression of a component of a parameterized derived type is
    parameterized, temporarily store the expression here.  */
 static gfc_expr *saved_kind_expr = NULL;
@@ -5647,8 +5650,8 @@ verify_bind_c_sym (gfc_symbol *tmp_sym, gfc_typespec *ts,
 	if (tmp_sym->ts.u.cl == NULL || tmp_sym->ts.u.cl->length == NULL
 	    || tmp_sym->ts.u.cl->length->expr_type != EXPR_CONSTANT
 	    || mpz_cmp_si (tmp_sym->ts.u.cl->length->value.integer, 1) != 0)
-	  gfc_error ("Return type of BIND(C) function %qs at %L cannot "
-			 "be a character string", tmp_sym->name,
+	  gfc_error ("Return type of BIND(C) function %qs of character "
+		     "type at %L must have length 1", tmp_sym->name,
 			 &(tmp_sym->declared_at));
     }
 
@@ -11242,4 +11245,42 @@ gfc_match_gcc_unroll (void)
 
   gfc_error ("Syntax error in !GCC$ UNROLL directive at %C");
   return MATCH_ERROR;
+}
+
+/* Match a !GCC$ builtin (b) attributes simd flags form:
+
+   The parameter b is name of a middle-end built-in.
+   Flags are one of:
+     - (empty)
+     - inbranch
+     - notinbranch
+
+   When we come here, we have already matched the !GCC$ builtin string.  */
+match
+gfc_match_gcc_builtin (void)
+{
+  char builtin[GFC_MAX_SYMBOL_LEN + 1];
+
+  if (gfc_match (" ( %n ) attributes simd", builtin) != MATCH_YES)
+    return MATCH_ERROR;
+
+  gfc_simd_clause clause = SIMD_NONE;
+  if (gfc_match (" ( notinbranch ) ") == MATCH_YES)
+    clause = SIMD_NOTINBRANCH;
+  else if (gfc_match (" ( inbranch ) ") == MATCH_YES)
+    clause = SIMD_INBRANCH;
+
+  if (gfc_vectorized_builtins == NULL)
+    gfc_vectorized_builtins = new hash_map<nofree_string_hash, int> ();
+
+  char *r = XNEWVEC (char, strlen (builtin) + 32);
+  sprintf (r, "__builtin_%s", builtin);
+
+  bool existed;
+  int &value = gfc_vectorized_builtins->get_or_insert (r, &existed);
+  value |= clause;
+  if (existed)
+    free (r);
+
+  return MATCH_YES;
 }

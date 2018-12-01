@@ -191,6 +191,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_WAITPKG_P(x)	TARGET_ISA_WAITPKG_P(x)
 #define TARGET_CLDEMOTE	TARGET_ISA_CLDEMOTE
 #define TARGET_CLDEMOTE_P(x) TARGET_ISA_CLDEMOTE_P(x)
+#define TARGET_PTWRITE	TARGET_ISA_PTWRITE
+#define TARGET_PTWRITE_P(x)	TARGET_ISA_PTWRITE_P(x)
 
 #define TARGET_LP64	TARGET_ABI_64
 #define TARGET_LP64_P(x)	TARGET_ABI_64_P(x)
@@ -415,6 +417,7 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_BTVER1 (ix86_tune == PROCESSOR_BTVER1)
 #define TARGET_BTVER2 (ix86_tune == PROCESSOR_BTVER2)
 #define TARGET_ZNVER1 (ix86_tune == PROCESSOR_ZNVER1)
+#define TARGET_ZNVER2 (ix86_tune == PROCESSOR_ZNVER2)
 
 /* Feature tests against the various tunings.  */
 enum ix86_tune_indices {
@@ -718,6 +721,9 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 /* Target Pragmas.  */
 #define REGISTER_TARGET_PRAGMAS() ix86_register_pragmas ()
 
+/* Target CPU versions for D.  */
+#define TARGET_D_CPU_VERSIONS ix86_d_target_versions
+
 #ifndef CC1_SPEC
 #define CC1_SPEC "%(cc1_cpu) "
 #endif
@@ -803,8 +809,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define PARM_BOUNDARY BITS_PER_WORD
 
 /* Boundary (in *bits*) on which stack pointer should be aligned.  */
-#define STACK_BOUNDARY \
- (TARGET_64BIT && ix86_abi == MS_ABI ? 128 : BITS_PER_WORD)
+#define STACK_BOUNDARY (TARGET_64BIT_MS_ABI ? 128 : BITS_PER_WORD)
 
 /* Stack boundary of the main function guaranteed by OS.  */
 #define MAIN_STACK_BOUNDARY (TARGET_64BIT ? 128 : 32)
@@ -2269,11 +2274,12 @@ enum processor_type
   PROCESSOR_BTVER1,
   PROCESSOR_BTVER2,
   PROCESSOR_ZNVER1,
+  PROCESSOR_ZNVER2,
   PROCESSOR_max
 };
 
 #if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
-extern const char *const processor_names[PROCESSOR_max];
+extern const char *const processor_names[];
 
 #include "wide-int-bitmask.h"
 
@@ -2351,6 +2357,7 @@ const wide_int_bitmask PTA_RDPID (0, HOST_WIDE_INT_1U << 6);
 const wide_int_bitmask PTA_PCONFIG (0, HOST_WIDE_INT_1U << 7);
 const wide_int_bitmask PTA_WBNOINVD (0, HOST_WIDE_INT_1U << 8);
 const wide_int_bitmask PTA_WAITPKG (0, HOST_WIDE_INT_1U << 9);
+const wide_int_bitmask PTA_PTWRITE (0, HOST_WIDE_INT_1U << 10);
 
 const wide_int_bitmask PTA_CORE2 = PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2
   | PTA_SSE3 | PTA_SSSE3 | PTA_CX16 | PTA_FXSR;
@@ -2386,7 +2393,7 @@ const wide_int_bitmask PTA_GOLDMONT = PTA_SILVERMONT | PTA_SHA | PTA_XSAVE
   | PTA_RDSEED | PTA_XSAVEC | PTA_XSAVES | PTA_CLFLUSHOPT | PTA_XSAVEOPT
   | PTA_FSGSBASE;
 const wide_int_bitmask PTA_GOLDMONT_PLUS = PTA_GOLDMONT | PTA_RDPID
-  | PTA_SGX;
+  | PTA_SGX | PTA_PTWRITE;
 const wide_int_bitmask PTA_TREMONT = PTA_GOLDMONT_PLUS | PTA_CLWB
   | PTA_GFNI;
 const wide_int_bitmask PTA_KNM = PTA_KNL | PTA_AVX5124VNNIW
