@@ -1,8 +1,6 @@
 // { dg-do compile }
 // { dg-options "-std=c++2a" }
 
-static_assert(__cpp_concepts > 201507);
-
 // Change in grammar for the expression trailing `requires`.
 template<typename T>
   requires true != false // { dg-error "expected unqualified-id" }
@@ -38,3 +36,26 @@ int C4 = 0; // { dg-error "different kind of symbol" }
 int C5 = 0;
 template<typename T>
 concept C5 = true; // { dg-error "different kind of symbol" }
+
+template<typename T>
+concept True = true;
+
+template<typename T>
+concept False = false;
+
+static_assert(True<int>);
+static_assert(False<int>); // { dg-error "static assertion failed" }
+
+template<typename T>
+  requires True<T>
+int f1(T t) { return 0; }
+
+template<typename T>
+  requires False<T>
+int f2(T t) { return 0; }
+
+void driver()
+{
+  f1(0);
+  f2(0); // { dg-error "cannot call function" }
+}
