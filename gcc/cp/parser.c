@@ -2399,8 +2399,6 @@ static void cp_parser_label_declaration
 
 /* Concept Extensions */
 
-static tree cp_parser_requires_clause
-  (cp_parser *);
 static tree cp_parser_requires_clause_opt
   (cp_parser *);
 static tree cp_parser_requires_expression
@@ -26172,21 +26170,84 @@ cp_parser_label_declaration (cp_parser* parser)
 // -------------------------------------------------------------------------- //
 // Requires Clause
 
-// Parse a requires clause.
+
+// Parse a primary expression within a constraint.
+static tree
+cp_parser_constraint_primary_expression (cp_parser *parser)
+{
+  cp_id_kind idk;
+  tree expr = cp_parser_primary_expression (parser, 
+                                            /*address_p=*/false, 
+                                            /*cast_p=*/false, 
+                                            /*template_arg_p=*/false, 
+                                            &idk);
+  return finish_constraint_primary_expr (expr);
+}
+
+// Parse a constraint-logical-and-expression.
 //
-//    requires-clause:
-//      'requires' logical-or-expression
+//     constraint-logical-and-expression:
+//       primary-expression
+//       constraint-logical-and-expression '&&' primary-expression.
+static tree
+cp_parser_constraint_logical_and_expression (cp_parser *parser)
+{
+  tree lhs = cp_parser_constraint_primary_expression (parser);
+  while (cp_lexer_next_token_is (parser->lexer, CPP_AND_AND))
+    {
+      cp_token *op = cp_lexer_consume_token (parser->lexer);
+      tree rhs = cp_parser_constraint_primary_expression (parser);
+      lhs = finish_constraint_and_expr (op->location, lhs, rhs);
+    }
+  return lhs;
+}
+
+// Parse a constraint-logical-or-expression.
+//
+//     constraint-logical-or-expression:
+//       constraint-logical-and-expression
+//       constraint-logical-or-expression '||' constraint-logical-and-expression
+static tree
+cp_parser_constraint_logical_or_expression (cp_parser *parser)
+{
+  tree lhs = cp_parser_constraint_logical_and_expression (parser);
+  while (cp_lexer_next_token_is (parser->lexer, CPP_OR_OR))
+    {
+      cp_token *op = cp_lexer_consume_token (parser->lexer);
+      tree rhs = cp_parser_constraint_logical_and_expression (parser);
+      lhs = finish_constraint_or_expr (op->location, lhs, rhs);
+    }
+  return lhs;
+}
+
+/// Parse the expression after a requires-clause. This has a different grammar
+/// than that in the concepts TS.
+static tree
+cp_parser_requires_clause_expression (cp_parser *parser)
+{
+  ++processing_template_decl;
+  tree expr = cp_parser_constraint_logical_or_expression (parser);
+  if (check_for_bare_parameter_packs (expr))
+    expr = error_mark_node;
+  --processing_template_decl;
+  return expr;
+}
+
+// Parse a expression after a requires clause.
+//
+//    constraint-expression:
+//      logical-or-expression 
 //
 // The required logical-or-expression must be a constant expression. Note
 // that we don't check that the expression is constepxr here. We defer until
 // we analyze constraints and then, we only check atomic constraints.
 static tree
-cp_parser_requires_clause (cp_parser *parser)
+cp_parser_constraint_expression (cp_parser *parser)
 {
   // Parse the requires clause so that it is not automatically folded.
   ++processing_template_decl;
   tree expr = cp_parser_binary_expression (parser, false, false,
-					   PREC_NOT_OPERATOR, NULL);
+                                           PREC_NOT_OPERATOR, NULL);
   if (check_for_bare_parameter_packs (expr))
     expr = error_mark_node;
   --processing_template_decl;
@@ -26194,6 +26255,11 @@ cp_parser_requires_clause (cp_parser *parser)
 }
 
 // Optionally parse a requires clause:
+//
+//    requires-clause:
+//      `requires` constraint-logical-or-expression.
+// [ConceptsTS]
+//      `requires constraint-expression
 static tree
 cp_parser_requires_clause_opt (cp_parser *parser)
 {
@@ -26204,17 +26270,20 @@ cp_parser_requires_clause_opt (cp_parser *parser)
 	  && tok->u.value == ridpointers[RID_REQUIRES])
 	{
 	  error_at (cp_lexer_peek_token (parser->lexer)->location,
-		    "%<requires%> only available with -fconcepts");
+		    "%<requires%> only available with "
+                    "-std=c++2a or -fconcepts");
 	  /* Parse and discard the requires-clause.  */
 	  cp_lexer_consume_token (parser->lexer);
-	  cp_parser_requires_clause (parser);
+	  cp_parser_constraint_expression (parser);
 	}
       return NULL_TREE;
     }
   cp_lexer_consume_token (parser->lexer);
-  return cp_parser_requires_clause (parser);
+  if (cxx_dialect >= cxx2a)
+    return cp_parser_requires_clause_expression (parser);
+  else 
+    return cp_parser_constraint_expression (parser);
 }
-
 
 /*---------------------------------------------------------------------------
                            Requires expressions
@@ -26497,8 +26566,10 @@ cp_parser_compound_requirement (cp_parser *parser)
 static tree
 cp_parser_nested_requirement (cp_parser *parser)
 {
+  // FIXME: Make sure that this is the right token.
+  gcc_assert (cp_lexer_next_token_is_keyword (parser->lexer, RID_REQUIRES));
   cp_lexer_consume_token (parser->lexer);
-  tree req = cp_parser_requires_clause (parser);
+  tree req = cp_parser_constraint_expression (parser);
   if (req == error_mark_node)
     return error_mark_node;
   return finish_nested_requirement (req);

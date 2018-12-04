@@ -7569,6 +7569,9 @@ extern cp_binding_oracle_function *cp_binding_oracle;
 
 /* in constraint.cc */
 extern void init_constraint_processing          ();
+extern tree finish_constraint_or_expr           (location_t, tree, tree);
+extern tree finish_constraint_and_expr          (location_t, tree, tree);
+extern tree finish_constraint_primary_expr      (tree);
 extern bool constraint_p                        (tree);
 extern tree conjoin_constraints                 (tree, tree);
 extern tree conjoin_constraints                 (tree);

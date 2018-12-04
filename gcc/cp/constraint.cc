@@ -45,6 +45,44 @@ along with GCC; see the file COPYING3.  If not see
 #include "decl.h"
 #include "toplev.h"
 #include "type-utils.h"
+#include "print-tree.h"
+
+/*---------------------------------------------------------------------------
+                       Constraint expressions
+---------------------------------------------------------------------------*/
+
+// Validate the semantic properties of the constraint.
+//
+// FIXME: What happens if we find an overloaded operator? 
+static tree
+finish_constraint_binary_op (location_t loc, tree_code code, tree lhs, tree rhs)
+{
+  tree overload;
+  tree expr = build_x_binary_op (loc, code, 
+                                 lhs, TREE_CODE (lhs), 
+                                 rhs, TREE_CODE (rhs), 
+                                 &overload, tf_none);
+  return expr;
+}
+
+tree
+finish_constraint_or_expr (location_t loc, tree lhs, tree rhs)
+{
+  return finish_constraint_binary_op (loc, TRUTH_ORIF_EXPR, lhs, rhs);
+}
+
+tree
+finish_constraint_and_expr (location_t loc, tree lhs, tree rhs)
+{
+  return finish_constraint_binary_op (loc, TRUTH_ANDIF_EXPR, lhs, rhs);
+}
+
+// FIXME: Perform early checks that the result can be converted to bool?
+tree
+finish_constraint_primary_expr (tree expr)
+{
+  return expr;
+}
 
 /*---------------------------------------------------------------------------
                        Operations on constraints
