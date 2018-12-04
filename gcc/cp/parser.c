@@ -26187,7 +26187,7 @@ static tree
 cp_parser_concept_definition (cp_parser *parser)
 {
   gcc_assert (cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT));
-  cp_token *kw = cp_lexer_consume_token (parser->lexer);
+  cp_lexer_consume_token (parser->lexer);
   
   cp_expr id = cp_parser_identifier (parser);
   if (id == error_mark_node)
@@ -26195,6 +26195,7 @@ cp_parser_concept_definition (cp_parser *parser)
       cp_parser_skip_to_end_of_statement (parser);
       return nullptr;
     }
+  tree decl = start_concept_definition (id.get_location(), id);
 
   if (!cp_parser_require (parser, CPP_EQ, RT_EQ))
     {
@@ -26206,10 +26207,10 @@ cp_parser_concept_definition (cp_parser *parser)
   if (init == error_mark_node)
     {
       cp_parser_skip_to_end_of_statement (parser);
-      return nullptr;
+      return error_mark_node;
     }
 
-  return nullptr;
+  return finish_concept_definition (decl, init);
 }
 
 // -------------------------------------------------------------------------- //

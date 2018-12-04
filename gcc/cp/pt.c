@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "gcc-rich-location.h"
 #include "selftest.h"
+#include "print-tree.h"
 
 /* The type of functions taking a tree, and some additional data, and
    returning an int.  */
@@ -26459,6 +26460,56 @@ make_constrained_auto (tree con, tree args)
 
   /* Attach the constraint to the type declaration. */
   tree decl = TYPE_NAME (type);
+  return decl;
+}
+
+/* Build and return a concept definition. Like other templates, the
+   CONCEPT_DECL node is wrapped by a TEMPLATE_DECL.  This returns the
+   the TEMPLATE_DECL. */
+
+tree
+start_concept_definition (location_t loc, tree id)
+{
+  gcc_assert (identifier_p (id));
+  gcc_assert (processing_template_decl);
+
+  /* A concept-definition shall appear in namespace scope.  Templates
+     aren't allowed in block scope, so we only need to check for class
+     scope.  */
+  if (current_class_type)
+    {
+      error_at (loc, "concept definition in class scope");
+      return error_mark_node;
+    }
+
+  /* Initially build the concept declaration; it's type is bool.  */
+  tree decl = build_lang_decl_loc (loc, CONCEPT_DECL, id, boolean_type_node);
+  DECL_CONTEXT (decl) = current_namespace;
+
+  /* Build the template for the concept.  */
+  tree tmpl = build_template_decl (decl, current_template_parms, false);
+  tree args = current_template_args ();
+  DECL_TEMPLATE_INFO (decl) = build_template_info (tmpl, args);
+  DECL_TEMPLATE_RESULT (tmpl) = decl;
+  TREE_TYPE (tmpl) = TREE_TYPE (decl);
+  SET_DECL_TEMPLATE_SPECIALIZATION (tmpl);
+
+  return tmpl;
+}
+
+/* Bind the concept's initializer to the declaration. Returns the 
+   concept definition.  */
+
+tree
+finish_concept_definition (tree decl, tree init)
+{
+  gcc_assert (concept_definition_p (decl) || decl == error_mark_node);
+
+  if (decl == error_mark_node)
+    return error_mark_node;
+
+  DECL_INITIAL (decl) = init;
+
   return decl;
 }
 

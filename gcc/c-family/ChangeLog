@@ -1,33 +1,5 @@
 2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	Initial support for concept definitions.
-	* cp-tree.def (CONCEPT_DECL): New.
-	* parser.c (cp_parser_concept_definition): New.
-	(cp_parser_constraint_expression): Declare earlier.
-	(cp_parser_decl_specifier_seq): Warn when concept appears to be used
-	as a decl-specifier.
-	(cp_parser_template_declaration_after_parameters): Parse concept
-	definitions.
-
-2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
-
-	Implement new grammar for requires-clauses.
-	* constraint.cc (finish_constraint_binary_op): New.
-	(finish_constraint_or_expr): Likewise.
-	(finish_constraint_and_expr): Likewise.
-	(finish_constraint_primary_expr): Likewise.
-	* cp-tree.h New declarations for semantic actions.
-	* parser.c (cp_parser_constraint_primary_expression): New.
-	(cp_parser_constraint_logical_and_expression): New.
-	(cp_parser_constraint_logical_or_expression): New.
-	(cp_parser_requires_clause_expression): New.
-	(cp_parser_requires_clause): Renamed to cp_parser_constraint_expression.
-	(cp_parser_requires_clause_opt): Parse the requires-clause differently
-	in -fconcepts and -std=c++2a modes.
-	(cp_parser_nested_requirement): Parse constraint-expressions.
-
-2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
-
 	Enable concepts in C++20 mode.
 	* c-cppbuiltin.c (c_cpp_builtins): Use new feature test values for
 	concepts when -std=c++2a.

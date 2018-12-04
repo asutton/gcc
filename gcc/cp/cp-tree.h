@@ -2566,7 +2566,8 @@ struct GTY(()) lang_decl_base {
    || TREE_CODE (NODE) == CONST_DECL		\
    || TREE_CODE (NODE) == TYPE_DECL		\
    || TREE_CODE (NODE) == TEMPLATE_DECL		\
-   || TREE_CODE (NODE) == USING_DECL)
+   || TREE_CODE (NODE) == USING_DECL            \
+   || TREE_CODE (NODE) == CONCEPT_DECL)
 
 /* DECL_LANG_SPECIFIC for the above codes.  */
 
@@ -3309,6 +3310,33 @@ struct GTY(()) lang_decl {
 #define TEMPLATE_DECL_COMPLEX_ALIAS_P(NODE) \
   DECL_LANG_FLAG_2 (TEMPLATE_DECL_CHECK (NODE))
 
+/* Returns t iff the node can have a TEMPLATE_INFO field.  */
+
+inline tree
+template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
+{
+  switch (TREE_CODE (t))
+    {
+    case VAR_DECL:
+    case FUNCTION_DECL:
+    case FIELD_DECL:
+    case TYPE_DECL:
+    case CONCEPT_DECL:
+    case TEMPLATE_DECL:
+      return const_cast<tree>(t);
+    default:
+      break;
+    }
+  tree_check_failed (t, f, l, fn, 
+                     VAR_DECL, FUNCTION_DECL, FIELD_DECL, TYPE_DECL, 
+                     CONCEPT_DECL, TEMPLATE_DECL, 0);
+  gcc_unreachable ();
+}
+
+
+#define TEMPLATE_INFO_DECL_CHECK(NODE) \
+  template_info_decl_check ((NODE), __FILE__, __LINE__, __FUNCTION__)
+
 /* Nonzero for a type which is an alias for another type; i.e, a type
    which declaration was written 'using name-of-type =
    another-type'.  */
@@ -3318,8 +3346,8 @@ struct GTY(()) lang_decl {
    && TREE_CODE (TYPE_NAME (NODE)) == TYPE_DECL	\
    && TYPE_DECL_ALIAS_P (TYPE_NAME (NODE)))
 
-/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL or
-   TEMPLATE_DECL, the entity is either a template specialization (if
+/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL, TEMPLATE_DECL, 
+   or CONCEPT_DECL, the entity is either a template specialization (if
    DECL_USE_TEMPLATE is nonzero) or the abstract instance of the
    template itself.
 
@@ -3338,7 +3366,7 @@ struct GTY(()) lang_decl {
    global function f.  In this case, DECL_TEMPLATE_INFO for S<int>::f
    will be non-NULL, but DECL_USE_TEMPLATE will be zero.  */
 #define DECL_TEMPLATE_INFO(NODE) \
-  (DECL_LANG_SPECIFIC (VAR_TEMPL_TYPE_FIELD_OR_FUNCTION_DECL_CHECK (NODE)) \
+  (DECL_LANG_SPECIFIC (TEMPLATE_INFO_DECL_CHECK (NODE)) \
    ->u.min.template_info)
 
 /* For a lambda capture proxy, its captured variable.  */
@@ -6085,6 +6113,15 @@ concept_template_p (tree t)
   return false;
 }
 
+/* True iff T is a C++2A-style concept definition.  */
+inline bool
+concept_definition_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  return TREE_CODE (DECL_TEMPLATE_RESULT (t)) == CONCEPT_DECL;
+}
+
 /* A parameter list indicating for a function with no parameters,
    e.g  "int f(void)".  */
 extern cp_parameter_declarator *no_parameters;
@@ -7572,6 +7609,8 @@ extern void init_constraint_processing          ();
 extern tree finish_constraint_or_expr           (location_t, tree, tree);
 extern tree finish_constraint_and_expr          (location_t, tree, tree);
 extern tree finish_constraint_primary_expr      (tree);
+extern tree start_concept_definition            (location_t, tree);
+extern tree finish_concept_definition           (tree, tree);
 extern bool constraint_p                        (tree);
 extern tree conjoin_constraints                 (tree, tree);
 extern tree conjoin_constraints                 (tree);
