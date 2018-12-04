@@ -1,5 +1,10 @@
 2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Initial support for concept definitions.
+	* g++.dg/cpp2a/concepts.C: Add tests for concept definitions.
+
+2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Implement new grammar for requires-clauses.
 	* g++.dg/cpp2a/concepts.C: Add tests for new requires-clause.
 

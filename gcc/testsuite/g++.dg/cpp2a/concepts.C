@@ -21,3 +21,8 @@ template<typename T>
 void f3(T)
 { }
 
+template<typename T>
+concept bool C3 = true; // { dg-error "expected identifier" }
+
+template<typename T>
+bool concept C3 = true; // { dg-warning "deprecated as a decl-specifier" }

@@ -2399,6 +2399,10 @@ static void cp_parser_label_declaration
 
 /* Concept Extensions */
 
+static tree cp_parser_concept_definition
+  (cp_parser *);
+static tree cp_parser_constraint_expression
+  (cp_parser *);
 static tree cp_parser_requires_clause_opt
   (cp_parser *);
 static tree cp_parser_requires_expression
@@ -13841,6 +13845,15 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
           break;
 
         case RID_CONCEPT:
+          /* Warn for concept as a decl-specifier. We'll rewrite these as
+             concept declarations later.  */
+          if (cxx_dialect >= cxx2a)
+            {
+              gcc_rich_location richloc (token->location);
+              warning (0, "%<concept%> is deprecated as a "
+                          "decl-specifier in C++20 and later");
+            }
+          
           ds = ds_concept;
           cp_lexer_consume_token (parser->lexer);
           break;
@@ -26168,6 +26181,38 @@ cp_parser_label_declaration (cp_parser* parser)
 }
 
 // -------------------------------------------------------------------------- //
+// Concept definitions
+
+static tree
+cp_parser_concept_definition (cp_parser *parser)
+{
+  gcc_assert (cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT));
+  cp_token *kw = cp_lexer_consume_token (parser->lexer);
+  
+  cp_expr id = cp_parser_identifier (parser);
+  if (id == error_mark_node)
+    {
+      cp_parser_skip_to_end_of_statement (parser);
+      return nullptr;
+    }
+
+  if (!cp_parser_require (parser, CPP_EQ, RT_EQ))
+    {
+      cp_parser_skip_to_end_of_statement (parser);
+      return error_mark_node;
+    }
+
+  tree init = cp_parser_constraint_expression (parser);
+  if (init == error_mark_node)
+    {
+      cp_parser_skip_to_end_of_statement (parser);
+      return nullptr;
+    }
+
+  return nullptr;
+}
+
+// -------------------------------------------------------------------------- //
 // Requires Clause
 
 
@@ -27474,6 +27519,9 @@ cp_parser_template_declaration_after_parameters (cp_parser* parser,
   else if (cxx_dialect >= cxx11
 	   && cp_lexer_next_token_is_keyword (parser->lexer, RID_USING))
     decl = cp_parser_alias_declaration (parser);
+  else if (cxx_dialect >= cxx2a /* Implies flag_concept.  */
+           && cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT))
+    decl = cp_parser_concept_definition (parser);
   else
     {
       /* There are no access checks when parsing a template, as we do not
