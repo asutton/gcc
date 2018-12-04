@@ -13849,9 +13849,9 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
              concept declarations later.  */
           if (cxx_dialect >= cxx2a)
             {
-              gcc_rich_location richloc (token->location);
-              warning (0, "%<concept%> is deprecated as a "
-                          "decl-specifier in C++20 and later");
+	            gcc_rich_location richloc (token->location);
+              warning_at (&richloc, 0, "%<concept%> is deprecated as a "
+                                       "decl-specifier in C++20 and later");
             }
           
           ds = ds_concept;
@@ -27528,7 +27528,9 @@ cp_parser_template_declaration_after_parameters (cp_parser* parser,
 	   && cp_lexer_next_token_is_keyword (parser->lexer, RID_USING))
     decl = cp_parser_alias_declaration (parser);
   else if (cxx_dialect >= cxx2a /* Implies flag_concept.  */
-           && cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT))
+           && cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT)
+           && !cp_lexer_nth_token_is_keyword (parser->lexer, 2, RID_BOOL))
+    /* Allow 'concept bool' to be handled as per the TS.  */
     decl = cp_parser_concept_definition (parser);
   else
     {

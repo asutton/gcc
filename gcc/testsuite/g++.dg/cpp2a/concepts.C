@@ -19,7 +19,7 @@ void f3(T)
 { }
 
 template<typename T> 
-concept bool C1 = true; // { dg-error "expected identifier" }
+concept bool C1 = true; // { dg-warning "deprecated as a decl-specifier" }
 template<typename T> 
 bool concept C1 = true; // { dg-warning "deprecated as a decl-specifier" }
 
