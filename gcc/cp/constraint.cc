@@ -546,9 +546,11 @@ get_variable_initializer (tree var)
 tree
 get_concept_definition (tree decl)
 {
+  if (concept_definition_p (decl))
+    return DECL_INITIAL (decl);
   if (VAR_P (decl))
     return get_variable_initializer (decl);
-  else if (TREE_CODE (decl) == FUNCTION_DECL)
+  if (TREE_CODE (decl) == FUNCTION_DECL)
     return get_returned_expression (decl);
   gcc_unreachable ();
 }
@@ -1243,6 +1245,7 @@ build_concept_check_arguments (tree arg, tree rest)
 /* Construct an expression that checks the concept given by
    TARGET. The TARGET must be:
 
+   - a concept definition (concept_definition_p is true)
    - an OVERLOAD referring to one or more function concepts
    - a BASELINK referring to an overload set of the above, or
    - a TEMPLTATE_DECL referring to a variable concept.
@@ -1253,7 +1256,9 @@ tree
 build_concept_check (tree target, tree arg, tree rest)
 {
   tree args = build_concept_check_arguments (arg, rest);
-  if (variable_template_p (target))
+  if (concept_definition_p (target))
+    return build2 (TEMPLATE_ID_EXPR, boolean_type_node, target, args);
+  else if (variable_template_p (target))
     return build_variable_check (lookup_template_variable (target, args));
   else
     return build_call_check (lookup_template_function (target, args));
@@ -2078,18 +2083,13 @@ satisfy_check_constraint (tree t, tree args,
   if (targs == error_mark_node)
     return boolean_false_node;
 
-  /* Search for a previous value.  */
-  if (tree prev = lookup_concept_satisfaction (tmpl, targs))
-    return prev;
-
-  /* Expand the concept; failure here implies non-satisfaction.  */
+  /* Expand the concept. Failure here implies non-satisfaction.  */
   tree def = expand_concept (decl, targs);
   if (def == error_mark_node)
-    return memoize_concept_satisfaction (tmpl, args, boolean_false_node);
+    return boolean_false_node;
 
   /* Recursively satisfy the constraint.  */
-  tree result = satisfy_constraint_1 (def, targs, complain, in_decl);
-  return memoize_concept_satisfaction (tmpl, targs, result);
+  return satisfy_constraint_1 (def, targs, complain, in_decl);
 }
 
 /* Check an expression constraint. The constraint is satisfied if
@@ -2367,6 +2367,17 @@ tree
 evaluate_constraints (tree constr, tree args)
 {
   gcc_assert (constraint_p (constr));
+  return satisfy_constraint (constr, args);
+}
+
+/* Returns true if C<ARGS> is satisfied and false otherwise.  */
+
+tree
+evaluate_concept (tree c, tree args)
+{
+  if (TREE_CODE (c) == TEMPLATE_DECL)
+    c = DECL_TEMPLATE_RESULT (c);
+  tree constr = build_nt (CHECK_CONSTR, c, args);
   return satisfy_constraint (constr, args);
 }
 

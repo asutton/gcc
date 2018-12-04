@@ -7649,6 +7649,7 @@ extern tree normalize_expression                (tree);
 extern tree expand_concept                      (tree, tree);
 extern bool expanding_concept                   ();
 extern tree evaluate_constraints                (tree, tree);
+extern tree evaluate_concept                    (tree, tree);
 extern tree evaluate_function_concept           (tree, tree);
 extern tree evaluate_variable_concept           (tree, tree);
 extern tree evaluate_constraint_expression      (tree, tree);

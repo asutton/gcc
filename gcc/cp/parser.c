@@ -16305,7 +16305,14 @@ cp_parser_template_id (cp_parser *parser,
       template_id
 	= finish_template_type (templ, arguments, entering_scope);
     }
-  /* A template-like identifier may be a partial concept id. */
+  /* The template-id could name a concept.  */
+  else if (concept_definition_p (templ))
+    {
+      tree type = boolean_type_node;
+      template_id = build2 (TEMPLATE_ID_EXPR, type, templ, arguments);
+      return template_id;
+    }
+  /* A template-like identifier may be a partial concept id.  */
   else if (flag_concepts
            && (template_id = (cp_parser_maybe_partial_concept_id
 			      (parser, templ, arguments))))

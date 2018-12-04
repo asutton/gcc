@@ -1,3 +1,15 @@
+2018-07-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Initially implement concepts as expressions.
+	* constexpr.c (cxx_eval_constant_expression): Evaluate concepts.
+	* constraint.cc (get_concept_definition): Return the initializer of
+	concept definitions.
+	(build_concept_check): Build concept checks for concept definitions.
+	(evaluate_concept): New.
+	* cp-tree.h (evaluate_concept): New.
+	* parser.c (cp_parser_template_id): Parse concept checks as 
+	template-ids.
+
 2018-07-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Implement declaration rules for concepts.
