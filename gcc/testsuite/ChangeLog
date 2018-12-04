@@ -1,3 +1,8 @@
+2018-07-08  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Enable concepts in C++20 mode.
+	* g++.dg/cpp2a/concepts.C: New.
+
 2018-11-30  Jakub Jelinek  <jakub@redhat.com>
 
 	PR testsuite/85368
