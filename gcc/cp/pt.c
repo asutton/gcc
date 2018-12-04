@@ -5501,6 +5501,8 @@ push_template_decl_real (tree decl, bool is_friend)
 	gcc_assert (!DECL_ARTIFICIAL (decl));
       else if (VAR_P (decl))
 	/* C++14 variable template. */;
+      else if (TREE_CODE (decl) == CONCEPT_DECL)
+        /* C++2a concept definitions.  */;
       else
 	{
 	  error ("template declaration of %q#D", decl);
@@ -26486,15 +26488,8 @@ start_concept_definition (location_t loc, tree id)
   tree decl = build_lang_decl_loc (loc, CONCEPT_DECL, id, boolean_type_node);
   DECL_CONTEXT (decl) = current_namespace;
 
-  /* Build the template for the concept.  */
-  tree tmpl = build_template_decl (decl, current_template_parms, false);
-  tree args = current_template_args ();
-  DECL_TEMPLATE_INFO (decl) = build_template_info (tmpl, args);
-  DECL_TEMPLATE_RESULT (tmpl) = decl;
-  TREE_TYPE (tmpl) = TREE_TYPE (decl);
-  SET_DECL_TEMPLATE_SPECIALIZATION (tmpl);
-
-  return tmpl;
+  /* Push the enclosing template.  */
+  return push_template_decl (decl);
 }
 
 /* Bind the concept's initializer to the declaration. Returns the 
@@ -27692,6 +27687,8 @@ tree
 get_constraints (tree t)
 {
   if (!flag_concepts)
+    return NULL_TREE;
+  if (!decl_constraints)
     return NULL_TREE;
 
   gcc_assert (DECL_P (t));

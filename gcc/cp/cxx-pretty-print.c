@@ -38,6 +38,7 @@ static void pp_cxx_typeid_expression (cxx_pretty_printer *, tree);
 static void pp_cxx_unary_left_fold_expression (cxx_pretty_printer *, tree);
 static void pp_cxx_unary_right_fold_expression (cxx_pretty_printer *, tree);
 static void pp_cxx_binary_fold_expression (cxx_pretty_printer *, tree);
+static void pp_cxx_concept_definition (cxx_pretty_printer *, tree);
 
 
 static inline void
@@ -2352,6 +2353,8 @@ pp_cxx_template_declaration (cxx_pretty_printer *pp, tree t)
 
   if (TREE_CODE (t) == FUNCTION_DECL && DECL_SAVED_TREE (t))
     pp_cxx_function_definition (pp, t);
+  else if (TREE_CODE (t) == CONCEPT_DECL)
+    pp_cxx_concept_definition (pp, t);
   else
     pp_cxx_simple_declaration (pp, t);
 }
@@ -2366,6 +2369,17 @@ static void
 pp_cxx_explicit_instantiation (cxx_pretty_printer *pp, tree t)
 {
   pp_unsupported_tree (pp, t);
+}
+
+static void
+pp_cxx_concept_definition (cxx_pretty_printer *pp, tree t)
+{
+  pp_cxx_unqualified_id (pp, DECL_NAME (t));
+  pp_cxx_whitespace (pp);
+  pp_cxx_ws_string (pp, "=");
+  pp_cxx_whitespace (pp);
+  pp->expression (DECL_INITIAL (t));
+  pp_cxx_semicolon (pp);
 }
 
 /*

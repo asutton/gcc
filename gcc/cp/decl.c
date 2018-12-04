@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "asan.h"
 #include "gcc-rich-location.h"
 #include "langhooks.h"
+#include "print-tree.h"
 
 /* Possible cases of bad specifiers type used by bad_specifiers. */
 enum bad_spec_place {
@@ -2874,6 +2875,9 @@ redeclaration_error_message (tree newdecl, tree olddecl)
 	    return G_("redefinition of %q#D");
 	  return NULL;
 	}
+
+      if (TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) == CONCEPT_DECL)
+        return G_("redefinition of %q#D");
 
       if (TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) != FUNCTION_DECL
 	  || (DECL_TEMPLATE_RESULT (newdecl)

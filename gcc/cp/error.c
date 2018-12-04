@@ -1276,6 +1276,11 @@ dump_decl (cxx_pretty_printer *pp, tree t, int flags)
       dump_template_decl (pp, t, flags);
       break;
 
+    case CONCEPT_DECL:
+      pp_cxx_ws_string (pp, "concept");
+      dump_decl_name (pp, DECL_NAME (t), flags);
+      break;
+
     case TEMPLATE_ID_EXPR:
       {
 	tree name = TREE_OPERAND (t, 0);
@@ -1440,7 +1445,9 @@ dump_template_decl (cxx_pretty_printer *pp, tree t, int flags)
   else if (DECL_TEMPLATE_RESULT (t)
            && (VAR_P (DECL_TEMPLATE_RESULT (t))
 	       /* Alias template.  */
-	       || DECL_TYPE_TEMPLATE_P (t)))
+	       || DECL_TYPE_TEMPLATE_P (t)
+               /* Concept definition.  &*/
+               || TREE_CODE (DECL_TEMPLATE_RESULT (t)) == CONCEPT_DECL))
     dump_decl (pp, DECL_TEMPLATE_RESULT (t), flags | TFF_TEMPLATE_NAME);
   else
     {

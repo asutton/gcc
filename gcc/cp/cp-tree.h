@@ -6113,13 +6113,14 @@ concept_template_p (tree t)
   return false;
 }
 
-/* True iff T is a C++2A-style concept definition.  */
+/* True iff T is a C++2A-style concept definition or a template that
+   defines the concept.  */
 inline bool
-concept_definition_p (tree t)
+concept_definition_p (const_tree t)
 {
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  return TREE_CODE (DECL_TEMPLATE_RESULT (t)) == CONCEPT_DECL;
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  return TREE_CODE (t) == CONCEPT_DECL;
 }
 
 /* A parameter list indicating for a function with no parameters,

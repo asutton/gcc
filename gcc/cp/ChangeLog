@@ -1,3 +1,20 @@
+2018-07-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Implement declaration rules for concepts.
+	* cp-tree.h (concept_definition_p): Allow templates as concept 
+	definitions.
+	* cxx-pretty-print.c (pp_cxx_concept_definition): New.
+	(pp_cxx_template_declaration): Print concept definitions.
+	* decl.c (redeclaration_error_message): New error for concepts.
+	* error.c (dump_decl): Dump concept definitions.
+	(dump_template_decl): Likewise.
+	* name-lookup.c (diagnose_name_conflict): Diagnose name issues with
+	concepts.
+	* pt.c (push_template_decl_real): Handle concept definitions.
+	(start_concept_definition): Let push_template_decl_real handle the
+	creation of the template.
+	(get_constraints): Return null if the table hasn't been initialized.
+
 2018-07-09  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Initial semantic plumbing for concept definitions.
