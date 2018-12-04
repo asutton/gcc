@@ -1,5 +1,12 @@
 2018-07-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Process concept checks as plain template-id expressions.
+	* parser.c (cp_parser_template_id): Build template-id expressions
+	for concept checks.
+	* pt.c (tsubst_copy_and_build): Likewise.
+
+2018-07-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Initially implement concepts as expressions.
 	* constexpr.c (cxx_eval_constant_expression): Evaluate concepts.
 	* constraint.cc (get_concept_definition): Return the initializer of
