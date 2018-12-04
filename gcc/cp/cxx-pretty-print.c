@@ -2879,7 +2879,9 @@ pp_cxx_check_constraint (cxx_pretty_printer *pp, tree t)
   tree args = CHECK_CONSTR_ARGS (t);
   tree id = build_nt (TEMPLATE_ID_EXPR, tmpl, args);
 
-  if (VAR_P (decl))
+  if (TREE_CODE (decl) == CONCEPT_DECL)
+    pp->expression (id);
+  else if (VAR_P (decl))
     pp->expression (id);
   else if (TREE_CODE (decl) == FUNCTION_DECL)
     {

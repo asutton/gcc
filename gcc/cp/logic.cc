@@ -46,6 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "decl.h"
 #include "toplev.h"
 #include "type-utils.h"
+#include "print-tree.h"
 
 namespace {
 
@@ -246,7 +247,6 @@ proof_state::proof_state ()
   : std::list<proof_goal> (1)
 { }
 
-
 /* Branch the current goal by creating a new subgoal, returning a
    reference to the new object. This does not update the current goal. */
 
@@ -268,7 +268,6 @@ proof_state::discharge (iterator i)
   return erase (i);
 }
 
-
 /*---------------------------------------------------------------------------
                         Debugging
 ---------------------------------------------------------------------------*/
@@ -279,13 +278,15 @@ proof_state::discharge (iterator i)
 //   for (term_list::iterator i = ts.begin(); i != ts.end(); ++i)
 //     verbatim ("  # %E", *i);
 // }
-//
+
 // void
-// debug (proof_goal& g)
+// debug (proof_goal& g, const char* label = "")
 // {
+//   verbatim ("-- %s --", label);
 //   debug (g.assumptions);
 //   verbatim ("       |-");
 //   debug (g.conclusions);
+//   verbatim ("=========");
 // }
 
 /*---------------------------------------------------------------------------
@@ -760,6 +761,8 @@ prove_implication (tree a, tree c)
 
       ++step_count;
     }
+
+  verbatim ("=== DONE ===");
 
   if (step_count == step_max)
     error ("subsumption failed to resolve");

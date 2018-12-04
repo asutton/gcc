@@ -319,6 +319,25 @@ resolve_constraint_check (tree call)
   return resolve_constraint_check (ovl, args);
 }
 
+/* Returns a pair containing instantiated arguments and the
+   concept definition.  */
+
+tree
+resolve_concept_definition_check (tree id)
+{
+  tree tmpl = TREE_OPERAND (id, 0);
+  tree args = TREE_OPERAND (id, 1);
+  gcc_assert (concept_definition_p (tmpl));
+
+  tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
+  ++processing_template_decl;
+  tree result = coerce_template_parms (parms, args, tmpl, tf_error);
+  --processing_template_decl;
+  if (result == error_mark_node)
+    return error_mark_node;
+  return build_tree_list (result, DECL_TEMPLATE_RESULT (tmpl));
+}
+
 /* Returns a pair containing the checked variable concept
    and its associated prototype parameter.  The result
    is a TREE_LIST whose TREE_VALUE is the variable concept
@@ -762,32 +781,38 @@ normalize_requires_expression (tree t)
 tree
 normalize_template_id_expression (tree t)
 {
-  if (tree info = resolve_variable_concept_check (t))
+  tree tmpl = TREE_OPERAND (t, 0);
+  tree info;
+  if (concept_definition_p (tmpl))
+    info = resolve_concept_definition_check (t);
+  else if (variable_template_p (tmpl))
+    info = resolve_variable_concept_check (t);
+  else
     {
-      if (info == error_mark_node)
+      /* Check that we didn't refer to a function concept like a variable.  */
+      tree fn = OVL_FIRST (TREE_OPERAND (t, 0));
+      if (TREE_CODE (fn) == TEMPLATE_DECL
+          && DECL_DECLARED_CONCEPT_P (DECL_TEMPLATE_RESULT (fn)))
         {
-          /* We get this when the template arguments don't match
-             the variable concept. */
-          error ("invalid reference to concept %qE", t);
+          error_at (location_of (t),
+                    "invalid reference to function concept %qD", fn);
           return error_mark_node;
         }
-
-      tree decl = TREE_VALUE (info);
-      tree args = TREE_PURPOSE (info);
-      return build_nt (CHECK_CONSTR, decl, args);
+      return build_nt (PRED_CONSTR, t);
     }
+  gcc_assert (info);
 
-  /* Check that we didn't refer to a function concept like a variable.  */
-  tree fn = OVL_FIRST (TREE_OPERAND (t, 0));
-  if (TREE_CODE (fn) == TEMPLATE_DECL
-      && DECL_DECLARED_CONCEPT_P (DECL_TEMPLATE_RESULT (fn)))
+  if (info == error_mark_node)
     {
-      error_at (location_of (t),
-		"invalid reference to function concept %qD", fn);
+      /* We get this when the template arguments don't match
+         the variable concept. */
+      error_at (location_of (t), "invalid reference to concept %qE", t);
       return error_mark_node;
     }
 
-  return build_nt (PRED_CONSTR, t);
+  tree decl = TREE_VALUE (info);
+  tree args = TREE_PURPOSE (info);
+  return build_nt (CHECK_CONSTR, decl, args);
 }
 
 /* For a call expression to a function concept, returns a check
@@ -2075,7 +2100,6 @@ satisfy_check_constraint (tree t, tree args,
                           tsubst_flags_t complain, tree in_decl)
 {
   tree decl = CHECK_CONSTR_CONCEPT (t);
-  tree tmpl = DECL_TI_TEMPLATE (decl);
   tree cargs = CHECK_CONSTR_ARGS (t);
 
   /* Instantiate the concept check arguments.  */

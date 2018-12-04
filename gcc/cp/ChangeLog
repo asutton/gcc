@@ -1,3 +1,14 @@
+2018-07-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Update normalization rules for concept checks.
+	* constraint.cc (resolve_concept_definition_check): New.
+	(normalize_template_id_expression): Handle concept definitions.
+	* cxx-pretty-print.c (pp_cxx_check_constraint): Update printing.
+	* logic.cc Adding some debugging code... removed later.
+	* pt.c (lookup_and_finish_template_variable): Build concept checks
+	with the correct arguments.
+
+
 2018-07-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Process concept checks as plain template-id expressions.
