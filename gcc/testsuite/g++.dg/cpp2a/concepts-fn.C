@@ -4,6 +4,11 @@
 template<typename T>
 concept Type = true;
 
+// FIXME: The error comes from calling f2 in driver. This should be a
+// warning not an error.
+template<typename T>
+concept False = false; // { dg-error "never satisfied" }
+
 template<typename T>
 concept Class = __is_class(T);
 
@@ -16,6 +21,69 @@ concept Classes = __is_class(T) && __is_class (U);
 struct empty { };
 
 struct nonempty { int n; };
+
+static_assert(Type<int>);
+static_assert(False<int>); // { dg-error "static assertion failed" }
+
+// Basic checks
+
+template<typename T>
+  requires Type<T>
+int fn1(T t) { return 0; }
+
+template<typename T>
+  requires False<T>
+int fn2(T t) { return 0; }
+
+void driver()
+{
+  fn1(0); // OK
+  fn2(0); // { dg-error "cannot call function" }
+}
+
+// Ordering
+
+template<typename T>
+concept Cf = requires (T t) { t.f(); };
+
+template<typename T>
+concept Cfg = Cf<T> && requires (T t) { t.g(); };
+
+template<typename T>
+concept Cf2 = requires (T t) { t.f(); };
+
+template<typename T>
+constexpr int algo(T t) { return 0; }
+
+template<typename T> requires Cf<T>
+constexpr int algo(T t) { return 1; }
+
+template<typename T> requires Cfg<T>
+constexpr int algo(T t) { return 2; }
+
+template<typename T> requires Cf<T>
+constexpr int ambig(T t) { return 1; }
+
+template<typename T> requires Cf2<T>
+constexpr int ambig(T t) { return 1; }
+
+struct T1 {
+  void f() { }
+};
+
+struct T2 : T1 {
+  void g() { }
+};
+
+void driver_0()
+{
+  T1 x;
+  T2 y;
+  static_assert(algo(0) == 0);
+  static_assert(algo(x) == 1);
+  static_assert(algo(y) == 2);
+  ambig(x); // { dg-error "call of overload | is ambiguous" }
+}
 
 template<typename T>
 struct S
@@ -55,7 +123,7 @@ void driver_1()
 
 template<typename T> requires Class<T> void f1(T x) { }
 
-// fn1-2.C -- Depenedent checks
+// fn1-2.C -- Dependent checks
 template<typename T>
 void caller_1(T x) 
 { 
@@ -161,3 +229,23 @@ int main () {
   constexpr auto p4 = &S3::fn<Y>; // Empty f
   static_assert((s.*p4)(y) == 1);
 }
+
+
+// Redeclarations
+
+// FIXME: This should be a diagnosable error. The programmer has moved
+// the requirements from the template-head to the declarator.
+template<typename T> requires Type<T> void f3();
+template<typename T> void f3() requires Type<T>;
+
+void driver_4()
+{
+  f3<int>(); // { dg-error "call of overload | ambiguous" }
+}
+
+template<template<typename T> requires true class X> void f4();
+template<template<typename T> class X> void f4(); // OK: different declarations
+
+template<typename T> requires Type<T> void def() { }
+template<typename T> requires Type<T> void def() { } // { dg-error "redefinition" }
+
