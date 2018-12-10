@@ -230,6 +230,8 @@ struct clause
 
   bool contains (tree t)
   {
+    if (TREE_CODE (t) != PRED_CONSTR)
+      debug_tree (t);
     gcc_assert (TREE_CODE (t) == PRED_CONSTR);
     return m_set.contains (t);
     

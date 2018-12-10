@@ -1,3 +1,8 @@
+2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix partial specialization issues.
+	* g++.dg/cpp2a/concepts-class.C: New test.
+
 2018-08-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Work on constrained class templates.

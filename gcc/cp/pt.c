@@ -4933,8 +4933,8 @@ process_partial_specialization (tree decl)
     = TI_ARGS (get_template_info (DECL_TEMPLATE_RESULT (maintmpl)));
   if (comp_template_args (inner_args, INNERMOST_TEMPLATE_ARGS (main_args))
       && (!flag_concepts
-	  || !strictly_subsumes (current_template_constraints (),
-				 get_constraints (maintmpl))))
+	  || !strictly_subsumes (current_template_constraints (), 
+				 inner_args, maintmpl)))
     {
       if (!flag_concepts)
 	error ("partial specialization %q+D does not specialize "

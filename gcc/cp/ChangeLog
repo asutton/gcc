@@ -1,3 +1,14 @@
+2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix partial specialization issues.
+	* constraint.cc (get_normalized_constraints_from_info): New.
+	(get_normalized_constraints_from_decl): New.
+	(strictly_subsumes): Simplify unpacking of data.
+	(more_constrained): Likewise.
+	* cp-tree.h (strictly_subsumes): Accept a new argument.
+	* pt.c (process_partial_specialization): Use updated subsumption
+	function.
+
 2018-08-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Work on constrained class templates.

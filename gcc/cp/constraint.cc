@@ -2730,13 +2730,48 @@ subsumes_constraints (tree a, tree b)
   return subsumes (a, b);
 }
 
-/* Returns true when the the constraints in A subsume those in B, but
-   the constraints in B do not subsume the constraints in A.  */
+/* Returns the normalized constraints from a constraint-info object
+   or NULL_TREE if the constraints are null. ARGS provide the initial
+   arguments for normalization and IN_DECL provides the declaration
+   to which the constraints belong.  */
+
+static tree
+get_normalized_constraints_from_info (tree ci, tree args, tree in_decl)
+{
+  if (ci == NULL_TREE)
+    return NULL_TREE;
+
+  /* Substitution errors during normalization are fatal.  */
+  subst_info info { tf_warning_or_error, in_decl };
+  return normalize_expression (CI_ASSOCIATED_CONSTRAINTS (ci), args, info);
+}
+
+/* Returns the normalized constraints for the declaration D.  */
+
+static tree
+get_normalized_constraints_from_decl (tree d)
+{
+  tree tmpl = TREE_CODE (d) == TEMPLATE_DECL ? d : DECL_TI_TEMPLATE (d);
+  tree decl = DECL_TEMPLATE_RESULT (tmpl);
+  tree args;
+  if (TREE_CODE (decl) == TYPE_DECL)
+    args = CLASSTYPE_TI_ARGS (TREE_TYPE (decl));
+  else
+    args = DECL_TI_ARGS (decl);
+  tree ci = get_constraints (tmpl);
+  return get_normalized_constraints_from_info (ci, args, tmpl);
+}
+
+/* Returns true when the the constraints in CI (with initial arguments 
+   ARGS) strictly subsume those associated constraints of TMPL.  */
 
 bool
-strictly_subsumes (tree a, tree b)
+strictly_subsumes (tree ci, tree args, tree tmpl)
 {
-  return subsumes (a, b) && !subsumes (b, a);
+  tree n1 = get_normalized_constraints_from_info (ci, args, NULL_TREE);
+  tree n2 = get_normalized_constraints_from_decl (tmpl);
+
+  return subsumes (n1, n2) && !subsumes (n2, n1);
 }
 
 /* Determines which of the declarations, A or B, is more constrained.
@@ -2749,33 +2784,8 @@ strictly_subsumes (tree a, tree b)
 int
 more_constrained (tree d1, tree d2)
 {
-  /* Unpack constraints and arguments from d1.  */
-  tree tmpl1 = TREE_CODE (d1) == TEMPLATE_DECL ? d1 : DECL_TI_TEMPLATE (d1);
-  tree decl1 = DECL_TEMPLATE_RESULT (tmpl1);
-  tree args1;
-  if (TREE_CODE (decl1) == TYPE_DECL)
-    args1 = CLASSTYPE_TI_ARGS (TREE_TYPE (decl1));
-  else
-    args1 = DECL_TI_ARGS (decl1);
-  tree c1 = get_constraints (tmpl1);
-  tree e1 = c1 ? CI_ASSOCIATED_CONSTRAINTS (c1) : NULL_TREE;
-
-  /* Unpack constraints and arguments from d2.  */
-  tree tmpl2 = TREE_CODE (d2) == TEMPLATE_DECL ? d2 : DECL_TI_TEMPLATE (d2);
-  tree decl2 = DECL_TEMPLATE_RESULT (tmpl2);
-  tree args2;
-  if (TREE_CODE (decl2) == TYPE_DECL)
-    args2 = CLASSTYPE_TI_ARGS (TREE_TYPE (decl2));
-  else
-    args2 = DECL_TI_ARGS (decl2);
-  tree c2 = get_constraints (tmpl2);
-  tree e2 = c2 ? CI_ASSOCIATED_CONSTRAINTS (c2) : NULL_TREE;
-
-  /* Substitution errors during normalization are fatal.  */
-  subst_info info1 { tf_warning_or_error, tmpl1 };
-  tree n1 = normalize_expression (e1, args1, info1);
-  subst_info info2 { tf_warning_or_error, tmpl2 };
-  tree n2 = normalize_expression (e2, args2, info2);
+  tree n1 = get_normalized_constraints_from_decl (d1);
+  tree n2 = get_normalized_constraints_from_decl (d2);
 
   int winner = 0;
   if (subsumes (n1, n2))
