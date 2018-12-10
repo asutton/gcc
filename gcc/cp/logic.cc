@@ -290,7 +290,7 @@ struct formula
 
   formula (tree t)
   {
-    m_clauses.emplace_back (t);
+    m_clauses.push_back (t);
     m_current = m_clauses.begin ();
   }
 

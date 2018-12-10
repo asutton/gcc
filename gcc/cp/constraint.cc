@@ -75,6 +75,10 @@ parsing_constraint_expression_p ()
 /* Information provided to substitution.  */
 struct subst_info
 {
+  subst_info (tsubst_flags_t cmp, tree in)
+    : complain (cmp), in_decl (in)
+  { }
+  
   tsubst_flags_t complain;
   tree in_decl;
 };
@@ -2356,7 +2360,7 @@ satisfy_constraint (tree t, tree args)
   if (args == NULL_TREE)
     args = make_tree_vec (1);
 
-  subst_info info {tf_none, NULL_TREE};
+  subst_info info (tf_none, NULL_TREE);
   return cxx_satisfy_expression (t, args, info);
 }
 
@@ -2685,7 +2689,7 @@ get_normalized_constraints_from_info (tree ci, tree args, tree in_decl)
     return NULL_TREE;
 
   /* Substitution errors during normalization are fatal.  */
-  subst_info info { tf_warning_or_error, in_decl };
+  subst_info info (tf_warning_or_error, in_decl);
   return normalize_expression (CI_ASSOCIATED_CONSTRAINTS (ci), args, info);
 }
 

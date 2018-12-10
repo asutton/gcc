@@ -1,3 +1,11 @@
+2018-09-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Stop using C++14 features.
+	* constraint.cc (subst_info): New constructor.
+	(satisfy_constraint): Explicitly invoke constructor.
+	(get_normalized_constraints_from_info): Likewise.
+	* logic.cc (formula): Use push_back.
+
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Move check into diagnostics.
