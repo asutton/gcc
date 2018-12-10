@@ -104,7 +104,7 @@ finish_constraint_and_expr (location_t loc, tree lhs, tree rhs)
 tree
 finish_constraint_primary_expr (location_t loc, tree expr)
 {
-  if (!EXPR_HAS_LOCATION (expr))
+  if (CAN_HAVE_LOCATION_P (expr) && !EXPR_HAS_LOCATION (expr))
     SET_EXPR_LOCATION (expr, loc);
   return expr;
 }
@@ -2467,10 +2467,15 @@ cxx_satisfy_disjunction (tree expr, tree args, subst_info info)
 /* Compute the satisfaction of an concept check constraint. Note that
    EXPR is a substituted template-id whose arguments will becoeme the
    innermost arguments for the recursive substitution into the
-   definition of named concept.  */
+   definition of named concept.  
+
+   MAPPING is our poor man's approximation of the "parameter mapping" 
+   for atomic constraints; it's the complete set of template
+   arguments that produced the current idexpr. We update the mapping
+   by replacing the innermost arguments with those of the idexpr.  */
 
 static tree
-cxx_satisfy_check (tree idexpr, subst_info info)
+cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
 {
   gcc_assert (TREE_CODE (idexpr) == TEMPLATE_ID_EXPR);
   tree tmpl = TREE_OPERAND (idexpr, 0);
@@ -2479,12 +2484,17 @@ cxx_satisfy_check (tree idexpr, subst_info info)
   /* TODO: We're going to need to reconstitute the parameter 
      mapping by making the innermost arguments those instantiated 
      with the concept check.  */
+  int n = TREE_VEC_LENGTH (mapping);
+  tree subst = make_tree_vec (n);
+  for (int i = 2; i <= n; ++i)
+    SET_TMPL_ARGS_LEVEL (subst, i, TMPL_ARGS_LEVEL (mapping, i));
+  SET_TMPL_ARGS_LEVEL (subst, 1, args);
 
   gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
   tree def = DECL_INITIAL (DECL_TEMPLATE_RESULT (tmpl));
   
   info.in_decl = tmpl;
-  tree result = cxx_satisfy_expression (def, args, info);
+  tree result = cxx_satisfy_expression (def, subst, info);
   if (result == boolean_true_node)
     return boolean_true_node;
   return boolean_false_node;
@@ -2522,18 +2532,35 @@ concept_check_p (tree expr)
 
 static void cxx_diagnose_atom (tree, tree, tree);
 
-/* Compute the satisfaction of an atomic costraint.  */
+static tree 
+cxx_evaluate_atom (tree expr, tree orig, tree args, subst_info info)
+{
+  /*  Evaluate the result. Note that this can fail.  */
+  tree result = cxx_constant_value (expr);
+  if (result == boolean_true_node)
+    return result;
+  if (result == error_mark_node)
+    return boolean_false_node;
+  
+  /* Evaluation succeeded, but satisfaction failed. Diagnose the
+     reason for satisfaction failure.  */
+  if (info.complain & tf_warning_or_error)
+    cxx_diagnose_atom (orig, args, info.in_decl);
+  return boolean_false_node;
+}
+
+/* Compute the satisfaction of an atomic constraint.  */
 
 static tree
 cxx_satisfy_atom (tree expr, tree args, subst_info info)
 {
   /* Apply the parameter mapping (i.e., just substitute).  */
-  tree result = tsubst_expr (expr, args, info.complain, info.in_decl, false);
+ tree result = tsubst_expr (expr, args, info.complain, info.in_decl, false);
   if (result == error_mark_node)
     return boolean_false_node;
 
   if (concept_check_p (result))
-    return cxx_satisfy_check (result, info);
+    return cxx_satisfy_check (result, args, info);
 
   /* [17.4.1.2] ... lvalue-to-value conversion is performed as
      necessary, and EXPR shall be a constant expression of type
@@ -2552,22 +2579,19 @@ cxx_satisfy_atom (tree expr, tree args, subst_info info)
       return boolean_false_node;
     }
 
-  /* Don't evaluate if we already have a value.  This suppresses 
-     spurious diagnostics when checking requires-expressions.  */
-  if (result == boolean_true_node || result == boolean_false_node)
-    return result;
-
-  /*  Evaluate the result. Note that this can fail.  */
-  result = cxx_constant_value (result);
+  /* Don't evaluate if we already have a value. This suppresses 
+     spurious diagnostics (and infinite recursion) when evaluating 
+     the expression.  */
   if (result == boolean_true_node)
     return result;
-  if (result == error_mark_node)
-    return boolean_false_node;
-  
-  /* The result is false. Possibly diagnose the error. */
-  if (info.complain & tf_warning_or_error)
-    cxx_diagnose_atom (expr, args, info.in_decl);
-  return boolean_false_node;
+  if (result == boolean_false_node)
+    {
+      if (info.complain & tf_warning_or_error)
+	cxx_diagnose_atom (expr, args, info.in_decl);
+      return boolean_false_node;
+    }
+
+  return cxx_evaluate_atom (result, expr, args, info);
 }
 
 /* Determine if the expression T, when normalized, is satisfied. 
@@ -2649,7 +2673,10 @@ satisfy_associated_constraints (tree ci, tree args)
     return boolean_true_node;
 
   /* If any arguments depend on template parameters, we can't
-     check constraints. */
+     check constraints. 
+
+     FIXME: We should never be asking for the satisfaction of
+     associated constraints with dependent template arguments.  */
   if (args && uses_template_parms (args))
     return boolean_true_node;
 
@@ -2735,8 +2762,12 @@ constraints_satisfied_p (tree decl)
     {
       tree tmpl = TI_TEMPLATE (ti);
       ci = get_constraints (tmpl);
-      int depth = TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (tmpl));
-      args = get_innermost_template_args (TI_ARGS (ti), depth);
+
+      /* The initial parameter mapping is the complete set of
+         template arguments substituted into the declaration.  */
+      args = TI_ARGS (ti);
+      // int depth = TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (tmpl));
+      // args = get_innermost_template_args (TI_ARGS (ti), depth);
     }
   else
     {
@@ -3548,11 +3579,15 @@ cxx_diagnose_trait (location_t loc, tree expr, tree args)
 static void
 cxx_diagnose_expression (location_t loc, tree expr, tree args, tree in_decl)
 {
+  location_t exprloc = EXPR_LOC_OR_LOC (expr, loc);
   switch (TREE_CODE (expr))
     {
+      case INTEGER_CST:
+        error_at (exprloc, "%qE is never satisfied", expr);
+        break;
       default:
-	error_at (EXPR_LOC_OR_LOC (expr, loc), 
-		  "the constraint %qE evaluated to %<false%>", expr);
+	error_at (exprloc, "the constraint %qE evaluated to %<false%>", expr);
+	break;
     }
 }
 

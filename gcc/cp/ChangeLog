@@ -1,5 +1,17 @@
 2018-07-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Implement deferred substitution through constrained members.
+	* constraint.cc (finish_constraint_and_expr): Make sure expressions
+	can have locations before setting them.
+	(cxx_satisfy_check): Build a new parameter mapping before substituting
+	through constraints.
+	(cxx_evaluate_atom): New. Evaluate atoms separate from checks.
+	(cxx_satisfy_atom): Diagnose constraints on failure.
+	(cxx_diagnose_expression): Special case for false.
+	* pt.c (tsubst_function_decl): Don't substitute through constraints.
+
+2018-07-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Initial experimental rewrite of satisfaction.
 	* constraint.cc (type_deducible_p): Re-apply type deduction logic.
 	(expression_convertible_t): Use direct initialization. Diagnose
