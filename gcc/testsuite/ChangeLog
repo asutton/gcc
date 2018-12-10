@@ -1,5 +1,10 @@
 2018-08-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Add address-of-function tests.
+	* g++.dg/cpp2a/concepts2.C: New tests.
+
+2018-08-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Add constrained parameters to template comparisons.
 	* g++.dg/cpp2a/concepts2.C: New overloading tests.
 	* g++.dg/cpp2a/concepts3.C: New overloading tests.

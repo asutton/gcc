@@ -120,3 +120,44 @@ int (S2::*p9)(int) = &S2::ok<int>;
 int (S2::*p10)(int) = &S2::err<int>; // { dg-error "no matches" }
 int (S2::*p11)(int) = &S2::ok;
 int (S2::*p12)(int) = &S2::err; // { dg-error "no matches" }
+
+// fn9.C -- Ordering with function address
+template<typename T> 
+  requires Class<T> 
+constexpr int fn(T) { return 1; }
+
+template<typename T> 
+  requires EmptyClass<T>
+constexpr int fn(T) { return 2; }
+
+struct S3 
+{
+  template<typename T> 
+    requires Class<T> 
+  constexpr int fn(T) const { return 1; }
+  
+  template<typename T> 
+    requires EmptyClass<T> 
+  constexpr int fn(T) const { return 2; }
+};
+
+int main () {
+  struct X { };
+  struct Y { X x; };
+
+  constexpr X x;
+  constexpr Y y;
+  constexpr S3 s;
+
+  constexpr auto p1 = &fn<X>; // Empty f
+  static_assert (p1(x) == 2);
+
+  constexpr auto p2 = &fn<Y>; // Class f
+  static_assert(p2(y) == 1);
+
+  constexpr auto p3 = &S3::fn<X>; // Empty f
+  static_assert((s.*p3)(x) == 2);
+
+  constexpr auto p4 = &S3::fn<Y>; // Empty f
+  static_assert((s.*p4)(y) == 1);
+}

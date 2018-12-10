@@ -1,4 +1,4 @@
-2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-08-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix constraint unpacking bug.
 	* constraint.cc (strictly_subsumes): Allow non-templates as arguments.
