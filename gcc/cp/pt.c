@@ -23192,7 +23192,7 @@ more_specialized_partial_spec (tree tmpl, tree pat1, tree pat2)
   /* If both deductions succeed, the partial ordering selects the more
      constrained template.  */
   if (!winner && any_deductions)
-    return more_constrained (tmpl1, tmpl2);
+    winner = more_constrained (tmpl1, tmpl2);
 
   /* In the case of a tie where at least one of the templates
      has a parameter pack at the end, the template with the most
