@@ -1,3 +1,44 @@
+2018-07-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Initial experimental rewrite of satisfaction.
+	* constraint.cc (expanding_concept_sentinel): Moved.
+	(finish_constraint_binary_op): Guard analysis.
+	(finish_constraint_primary_expr): Set the source location of the
+	primary expression.
+	(combine_constraint_expressions): New.
+	(build_constraints): Save expressions, not normalized constraints.
+	(get_shorthand_constraints): Temporarily disable this function.
+	(tsubst_simple_requirement): Return errors if they occur. Don't
+	process as a template.
+	(tsubst_type_requirement): Likewise.
+	(type_deducible_p): New.
+	(expression_convertible_t): New.
+	(tsubst_compound_requirement): Use new deduction, conversion predicates.
+	(tsubst_nested_requirement): Return errors if they occur. Don't
+	process as a template.
+	(tsubst_requires_expr): Likewise. Produce new requires-exprs during
+	template substitution.
+	(subst_info): New.
+	(cxx_satisfy_expression): New.
+	(cxx_satisfy_conjunction): New.
+	(cxx_satisfy_disjunction): New.
+	(cxx_satisfy_check): New.
+	(concept_check_p): New.
+	(cxx_satisfy_atom): New.
+	(cxx_satisfy_expression): New.
+	(satisfy_constraint): Use new satisfaction algorithm.
+	(cxx_diagnose_trait): New.
+	(cxx_diagnose_expression): New.
+	(cxx_diagnose_atom): New.
+	* cp-tree.h (finish_constraint_primary_expr): Accept a location_t.
+	(combine_constraint_expressions): New.
+	* decl.c (grokfndecl): Don't normalize constraints.
+	* parser.c (cp_parser_type_parameter): Combine expressions not 
+	constraints. 
+	(cp_parser_constraint_primary_expression): Track source locations.
+	(cp_parser_explicit_template_declaration): Combine expressions not
+	constraints.
+
 2018-07-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Always make 'concept bool' a warning.

@@ -16030,8 +16030,8 @@ cp_parser_type_parameter (cp_parser* parser, bool *is_parameter_pack)
 	if (flag_concepts)
           {
 	    tree reqs = get_shorthand_constraints (current_template_parms);
-	    if (tree r = cp_parser_requires_clause_opt (parser))
-              reqs = conjoin_constraints (reqs, normalize_expression (r));
+	    if (tree dreqs = cp_parser_requires_clause_opt (parser))
+              reqs = combine_constraint_expressions (reqs, dreqs);
 	    TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = reqs;
           }
 
@@ -26229,12 +26229,13 @@ static tree
 cp_parser_constraint_primary_expression (cp_parser *parser)
 {
   cp_id_kind idk;
+  location_t loc = input_location;
   tree expr = cp_parser_primary_expression (parser, 
                                             /*address_p=*/false, 
                                             /*cast_p=*/false, 
                                             /*template_arg_p=*/false, 
                                             &idk);
-  return finish_constraint_primary_expr (expr);
+  return finish_constraint_primary_expr (loc, expr);
 }
 
 // Parse a constraint-logical-and-expression.
@@ -27779,8 +27780,8 @@ cp_parser_explicit_template_declaration (cp_parser* parser, bool member_p)
   if (flag_concepts)
   {
     tree reqs = get_shorthand_constraints (current_template_parms);
-    if (tree r = cp_parser_requires_clause_opt (parser))
-      reqs = conjoin_constraints (reqs, normalize_expression (r));
+    if (tree treqs = cp_parser_requires_clause_opt (parser))
+      reqs = combine_constraint_expressions (reqs, treqs);
     TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = reqs;
   }
 

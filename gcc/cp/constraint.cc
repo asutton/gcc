@@ -47,8 +47,29 @@ along with GCC; see the file COPYING3.  If not see
 #include "type-utils.h"
 #include "print-tree.h"
 
+
+namespace
+{
+
+int expansion_level = 0;
+
+struct expanding_concept_sentinel
+{
+  expanding_concept_sentinel ()
+  {
+    ++expansion_level;
+  }
+
+  ~expanding_concept_sentinel()
+  {
+    --expansion_level;
+  }
+};
+
+} // namespace
+
 /*---------------------------------------------------------------------------
-                       Constraint expressions
+		       Constraint expressions
 ---------------------------------------------------------------------------*/
 
 // Validate the semantic properties of the constraint.
@@ -57,11 +78,14 @@ along with GCC; see the file COPYING3.  If not see
 static tree
 finish_constraint_binary_op (location_t loc, tree_code code, tree lhs, tree rhs)
 {
+  expanding_concept_sentinel sentinel;
+
   tree overload;
   tree expr = build_x_binary_op (loc, code, 
-                                 lhs, TREE_CODE (lhs), 
-                                 rhs, TREE_CODE (rhs), 
-                                 &overload, tf_none);
+				 lhs, TREE_CODE (lhs), 
+				 rhs, TREE_CODE (rhs), 
+				 &overload, tf_none);
+  SET_EXPR_LOCATION (expr, loc);
   return expr;
 }
 
@@ -77,15 +101,28 @@ finish_constraint_and_expr (location_t loc, tree lhs, tree rhs)
   return finish_constraint_binary_op (loc, TRUTH_ANDIF_EXPR, lhs, rhs);
 }
 
-// FIXME: Perform early checks that the result can be converted to bool?
 tree
-finish_constraint_primary_expr (tree expr)
+finish_constraint_primary_expr (location_t loc, tree expr)
 {
+  if (!EXPR_HAS_LOCATION (expr))
+    SET_EXPR_LOCATION (expr, loc);
   return expr;
 }
 
+/* Combine two constraint-expressions with a logical-and.  */
+
+tree
+combine_constraint_expressions (tree lhs, tree rhs)
+{
+  if (!lhs)
+    return rhs;
+  if (!rhs)
+    return lhs;
+  return finish_constraint_and_expr (input_location, lhs, rhs);
+}
+
 /*---------------------------------------------------------------------------
-                       Operations on constraints
+		       Operations on constraints
 ---------------------------------------------------------------------------*/
 
 /* Returns true if C is a constraint tree code. Note that ERROR_MARK
@@ -95,8 +132,8 @@ static inline bool
 constraint_p (tree_code c)
 {
   return ((PRED_CONSTR <= c && c <= DISJ_CONSTR)
-          || c == EXPR_PACK_EXPANSION
-          || c == ERROR_MARK);
+	  || c == EXPR_PACK_EXPANSION
+	  || c == ERROR_MARK);
 }
 
 /* Returns true if T is a constraint. Note that error_mark_node
@@ -160,7 +197,7 @@ function_concept_check_p (tree t)
       tree f1 = OVL_FIRST (TREE_OPERAND (fn, 0));
       if (TREE_CODE (f1) == TEMPLATE_DECL
 	  && DECL_DECLARED_CONCEPT_P (DECL_TEMPLATE_RESULT (f1)))
-        return true;
+	return true;
     }
   return false;
 }
@@ -213,7 +250,7 @@ build_variable_check (tree id)
 }
 
 /*---------------------------------------------------------------------------
-                    Resolution of qualified concept names
+		    Resolution of qualified concept names
 ---------------------------------------------------------------------------*/
 
 /* This facility is used to resolve constraint checks from
@@ -247,7 +284,7 @@ resolve_constraint_check (tree ovl, tree args)
       // Get the next template overload.
       tree tmpl = *iter;
       if (TREE_CODE (tmpl) != TEMPLATE_DECL)
-        continue;
+	continue;
 
       // Don't try to deduce checks for non-concepts. We often
       // end up trying to resolve constraints in functional casts
@@ -258,20 +295,20 @@ resolve_constraint_check (tree ovl, tree args)
       // non-deduced contexts using placeholder arguments.
       tree fn = DECL_TEMPLATE_RESULT (tmpl);
       if (DECL_ARGUMENTS (fn))
-        continue;
+	continue;
       if (!DECL_DECLARED_CONCEPT_P (fn))
-        continue;
+	continue;
 
       // Remember the candidate if we can deduce a substitution.
       ++processing_template_decl;
       tree parms = TREE_VALUE (DECL_TEMPLATE_PARMS (tmpl));
       if (tree subst = coerce_template_parms (parms, args, tmpl))
-        {
-          if (subst == error_mark_node)
-            ++nerrs;
-          else
+	{
+	  if (subst == error_mark_node)
+	    ++nerrs;
+	  else
 	    cands = tree_cons (subst, fn, cands);
-        }
+	}
       --processing_template_decl;
     }
 
@@ -423,7 +460,7 @@ deduce_concept_introduction (tree expr)
 namespace {
 
 /*---------------------------------------------------------------------------
-                       Constraint implication learning
+		       Constraint implication learning
 ---------------------------------------------------------------------------*/
 
 /* The implication context determines how we memoize concept checks.
@@ -461,15 +498,15 @@ learn_implication (tree parent, tree child, implication_context cxt)
   switch (cxt)
     {
       case conjunction_cxt:
-        save_subsumption_result (parent, child, true);
-        break;
+	save_subsumption_result (parent, child, true);
+	break;
       case disjunction_cxt:
-        save_subsumption_result (child, parent, true);
-        break;
+	save_subsumption_result (child, parent, true);
+	break;
       case equivalence_cxt:
-        save_subsumption_result (parent, child, true);
-        save_subsumption_result (child, parent, true);
-        break;
+	save_subsumption_result (parent, child, true);
+	save_subsumption_result (child, parent, true);
+	break;
     }
 }
 
@@ -486,20 +523,20 @@ learn_implications (tree parent, tree constr, implication_context cxt)
   switch (TREE_CODE (constr))
     {
       case CHECK_CONSTR:
-        return learn_implication (parent, constr, cxt);
+	return learn_implication (parent, constr, cxt);
 
       case CONJ_CONSTR:
-        if (cxt == disjunction_cxt)
-          return;
-        return learn_logical_operation (parent, constr, cxt);
+	if (cxt == disjunction_cxt)
+	  return;
+	return learn_logical_operation (parent, constr, cxt);
 
       case DISJ_CONSTR:
-        if (cxt == conjunction_cxt)
-          return;
-        return learn_logical_operation (parent, constr, cxt);
+	if (cxt == conjunction_cxt)
+	  return;
+	return learn_logical_operation (parent, constr, cxt);
 
       default:
-        break;
+	break;
     }
 }
 
@@ -529,7 +566,7 @@ learn_implications (tree tmpl, tree args, tree constr)
 }
 
 /*---------------------------------------------------------------------------
-                       Expansion of concept definitions
+		       Expansion of concept definitions
 ---------------------------------------------------------------------------*/
 
 /* Returns the expression of a function concept. */
@@ -573,22 +610,6 @@ get_concept_definition (tree decl)
     return get_returned_expression (decl);
   gcc_unreachable ();
 }
-
-int expansion_level = 0;
-
-struct expanding_concept_sentinel
-{
-  expanding_concept_sentinel ()
-  {
-    ++expansion_level;
-  }
-
-  ~expanding_concept_sentinel()
-  {
-    --expansion_level;
-  }
-};
-
 
 } /* namespace */
 
@@ -634,7 +655,7 @@ expand_concept (tree decl, tree args)
 
 
 /*---------------------------------------------------------------------------
-                Stepwise normalization of expressions
+		Stepwise normalization of expressions
 
 This set of functions will transform an expression into a constraint
 in a sequence of steps. Normalization does not not look into concept
@@ -689,11 +710,11 @@ normalize_compound_requirement (tree t)
     {
       tree type_constr;
       /* TODO: We should be extracting a list of auto nodes
-         from type_uses_auto, not a single node */
+	 from type_uses_auto, not a single node */
       if (tree placeholder = type_uses_auto (type))
-        type_constr = build_nt (DEDUCT_CONSTR, expr, type, placeholder);
+	type_constr = build_nt (DEDUCT_CONSTR, expr, type, placeholder);
       else
-        type_constr = build_nt (ICONV_CONSTR, expr, type);
+	type_constr = build_nt (ICONV_CONSTR, expr, type);
       constr = conjoin_constraints (constr, type_constr);
     }
 
@@ -792,12 +813,12 @@ normalize_template_id_expression (tree t)
       /* Check that we didn't refer to a function concept like a variable.  */
       tree fn = OVL_FIRST (TREE_OPERAND (t, 0));
       if (TREE_CODE (fn) == TEMPLATE_DECL
-          && DECL_DECLARED_CONCEPT_P (DECL_TEMPLATE_RESULT (fn)))
-        {
-          error_at (location_of (t),
-                    "invalid reference to function concept %qD", fn);
-          return error_mark_node;
-        }
+	  && DECL_DECLARED_CONCEPT_P (DECL_TEMPLATE_RESULT (fn)))
+	{
+	  error_at (location_of (t),
+		    "invalid reference to function concept %qD", fn);
+	  return error_mark_node;
+	}
       return build_nt (PRED_CONSTR, t);
     }
   gcc_assert (info);
@@ -805,7 +826,7 @@ normalize_template_id_expression (tree t)
   if (info == error_mark_node)
     {
       /* We get this when the template arguments don't match
-         the variable concept. */
+	 the variable concept. */
       error_at (location_of (t), "invalid reference to concept %qE", t);
       return error_mark_node;
     }
@@ -829,7 +850,7 @@ normalize_call_expression (tree t)
   if (check == error_mark_node)
     {
       /* TODO: Improve diagnostics. We could report why the reference
-         is invalid. */
+	 is invalid. */
       error ("invalid reference to concept %qE", t);
       return error_mark_node;
     }
@@ -861,7 +882,7 @@ check_for_logical_overloads (tree t)
     {
       fn = TREE_OPERAND (fn, 1);
       if (TREE_CODE (fn) == BASELINK)
-        fn = BASELINK_FUNCTIONS (fn);
+	fn = BASELINK_FUNCTIONS (fn);
     }
 
   if (TREE_CODE (fn) != FUNCTION_DECL)
@@ -897,12 +918,12 @@ normalize_atom (tree t)
   else if (!dependent_type_p (type))
     {
       if (check_for_logical_overloads (t))
-        return error_mark_node;
+	return error_mark_node;
 
       type = cv_unqualified (type);
       if (!same_type_p (type, boolean_type_node))
 	{
-	  error ("predicate constraint %q+E does not have type %<bool%>", t);
+	  error ("atomic constraint %q+E does not have type %<bool%>", t);
 	  return error_mark_node;
 	}
     }
@@ -965,7 +986,10 @@ normalize_any_expression (tree t)
       return normalize_logical_operation (t, DISJ_CONSTR);
 
     case REQUIRES_EXPR:
-      return normalize_requires_expression (t);
+      if (cxx_dialect >= cxx2a)
+	return normalize_atom (t);
+      else
+	return normalize_requires_expression (t);
 
     case BIND_EXPR:
       return normalize_expression (BIND_EXPR_BODY (t));
@@ -1041,7 +1065,6 @@ normalize_expression (tree t)
       return normalize_atom (t);
 
     default:
-      /* Unhandled node kind. */
       gcc_unreachable ();
     }
   return error_mark_node;
@@ -1049,7 +1072,7 @@ normalize_expression (tree t)
 
 
 /*---------------------------------------------------------------------------
-                        Constraint normalization
+			Constraint normalization
 ---------------------------------------------------------------------------*/
 
 tree normalize_constraint (tree);
@@ -1119,33 +1142,31 @@ normalize_constraint (tree t)
   switch (TREE_CODE (t))
     {
       case CONJ_CONSTR:
-        return normalize_conjunction (t);
+	return normalize_conjunction (t);
 
       case DISJ_CONSTR:
-        return normalize_disjunction (t);
+	return normalize_disjunction (t);
 
       case PRED_CONSTR:
-        return normalize_predicate_constraint (t);
+	return normalize_predicate_constraint (t);
 
       case PARM_CONSTR:
-        return normalize_parameterized_constraint (t);
+	return normalize_parameterized_constraint (t);
 
       case EXPR_CONSTR:
       case TYPE_CONSTR:
       case ICONV_CONSTR:
       case DEDUCT_CONSTR:
       case EXCEPT_CONSTR:
-        /* These constraints are defined to be atomic. */
-        return t;
+	/* These constraints are defined to be atomic. */
+	return t;
 
       default:
-        /* CONSTR was not a constraint. */
-        gcc_unreachable();
+	/* CONSTR was not a constraint. */
+	gcc_unreachable();
     }
   return error_mark_node;
 }
-
-
 
 // -------------------------------------------------------------------------- //
 // Constraint Semantic Processing
@@ -1187,15 +1208,15 @@ associate_classtype_constraints (tree type)
       // class, then we need match these constraints against those of
       // original declaration.
       if (tree orig_ci = get_constraints (decl))
-        {
-          if (!equivalent_constraints (ci, orig_ci))
-            {
-              // FIXME: Improve diagnostics.
-              error ("%qT does not match any declaration", type);
-              return error_mark_node;
-            }
-          return type;
-        }
+	{
+	  if (!equivalent_constraints (ci, orig_ci))
+	    {
+	      // FIXME: Improve diagnostics.
+	      error ("%qT does not match any declaration", type);
+	      return error_mark_node;
+	    }
+	  return type;
+	}
       set_constraints (decl, ci);
     }
   return type;
@@ -1221,18 +1242,15 @@ build_constraint_info ()
    this returns NULL_TREE, indicating an unconstrained declaration.  */
 
 tree
-build_constraints (tree tmpl_reqs, tree decl_reqs)
+build_constraints (tree treqs, tree dreqs)
 {
-  gcc_assert (tmpl_reqs ? constraint_p (tmpl_reqs) : true);
-  gcc_assert (decl_reqs ? constraint_p (decl_reqs) : true);
-
-  if (!tmpl_reqs && !decl_reqs)
+  if (!treqs && !dreqs)
     return NULL_TREE;
 
   tree_constraint_info* ci = build_constraint_info ();
-  ci->template_reqs = tmpl_reqs;
-  ci->declarator_reqs = decl_reqs;
-  ci->associated_constr = conjoin_constraints (tmpl_reqs, decl_reqs);
+  ci->template_reqs = treqs;
+  ci->declarator_reqs = dreqs;
+  ci->associated_constr = combine_constraint_expressions (treqs, dreqs);
 
   return (tree)ci;
 }
@@ -1252,8 +1270,8 @@ build_concept_check_arguments (tree arg, tree rest)
       args = make_tree_vec (n + 1);
       TREE_VEC_ELT (args, 0) = arg;
       if (rest)
-        for (int i = 0; i < n; ++i)
-          TREE_VEC_ELT (args, i + 1) = TREE_VEC_ELT (rest, i);
+	for (int i = 0; i < n; ++i)
+	  TREE_VEC_ELT (args, i + 1) = TREE_VEC_ELT (rest, i);
       int def = rest ? GET_NON_DEFAULT_TEMPLATE_ARGS_COUNT (rest) : 0;
       SET_NON_DEFAULT_TEMPLATE_ARGS_COUNT (args, def + 1);
     }
@@ -1372,6 +1390,9 @@ finish_shorthand_constraint (tree decl, tree constr)
 tree
 get_shorthand_constraints (tree parms)
 {
+  /* FIXME: Undo this.  */
+  return NULL_TREE;
+
   tree result = NULL_TREE;
   parms = INNERMOST_TEMPLATE_PARMS (parms);
   for (int i = 0; i < TREE_VEC_LENGTH (parms); ++i)
@@ -1445,7 +1466,7 @@ process_introduction_parm (tree parameter_list, tree src_parm)
   parm = build_tree_list (NULL_TREE, parm);
 
   return process_template_parm (parameter_list, parm_loc, parm,
-                                is_non_type, is_parameter_pack);
+				is_non_type, is_parameter_pack);
 }
 
 /* Associates a constraint check to the current template based
@@ -1481,8 +1502,8 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
   for (int i = 0; i < TREE_VEC_LENGTH (parm_list); ++i)
     if (TREE_VALUE (TREE_VEC_ELT (parm_list, i)) == error_mark_node)
       {
-        end_template_decl ();
-        return error_mark_node;
+	end_template_decl ();
+	return error_mark_node;
       }
 
   /* Build a concept check for our constraint.  */
@@ -1519,8 +1540,8 @@ placeholder_extract_concept_and_args (tree t, tree &tmpl, tree &args)
   if (TREE_CODE (t) == TYPE_DECL)
     {
       /* A constrained parameter.  Build a constraint check
-         based on the prototype parameter and then extract the
-         arguments from that.  */
+	 based on the prototype parameter and then extract the
+	 arguments from that.  */
       tree proto = CONSTRAINED_PARM_PROTOTYPE (t);
       tree check = finish_shorthand_constraint (proto, t);
       placeholder_extract_concept_and_args (check, tmpl, args);
@@ -1602,7 +1623,7 @@ hash_placeholder_constraint (tree c)
 }
 
 /*---------------------------------------------------------------------------
-                        Constraint substitution
+			Constraint substitution
 ---------------------------------------------------------------------------*/
 
 /* The following functions implement substitution rules for constraints.
@@ -1610,8 +1631,8 @@ hash_placeholder_constraint (tree c)
    instantiation of class templates. For example:
 
       template<C1 T> struct S {
-        void f(T) requires C2<T>;
-        void g(T) requires T::value;
+	void f(T) requires C2<T>;
+	void g(T) requires T::value;
       };
 
       S<int> s; // error instantiating S<int>::g(T)
@@ -1630,7 +1651,7 @@ hash_placeholder_constraint (tree c)
    if the substitution into the expression fails. */
 tree
 tsubst_predicate_constraint (tree t, tree args,
-                             tsubst_flags_t complain, tree in_decl)
+			     tsubst_flags_t complain, tree in_decl)
 {
   tree expr = PRED_CONSTR_EXPR (t);
   ++processing_template_decl;
@@ -1643,7 +1664,7 @@ tsubst_predicate_constraint (tree t, tree args,
 
 tree
 tsubst_check_constraint (tree t, tree args,
-                         tsubst_flags_t complain, tree in_decl)
+			 tsubst_flags_t complain, tree in_decl)
 {
   tree decl = CHECK_CONSTR_CONCEPT (t);
   tree tmpl = DECL_TI_TEMPLATE (decl);
@@ -1715,7 +1736,7 @@ tsubst_type_constr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
 tree
 tsubst_implicit_conversion_constr (tree t, tree args, tsubst_flags_t complain,
-                                   tree in_decl)
+				   tree in_decl)
 {
   cp_unevaluated guard;
   tree expr = ICONV_CONSTR_EXPR (t);
@@ -1733,7 +1754,7 @@ tsubst_implicit_conversion_constr (tree t, tree args, tsubst_flags_t complain,
 
 tree
 tsubst_argument_deduction_constr (tree t, tree args, tsubst_flags_t complain,
-                                  tree in_decl)
+				  tree in_decl)
 {
   cp_unevaluated guard;
   tree expr = DEDUCT_CONSTR_EXPR (t);
@@ -1779,15 +1800,15 @@ declare_constraint_vars (tree parms, tree vars)
   for (tree t = parms; t; t = DECL_CHAIN (t))
     {
       if (DECL_PACK_P (t))
-        {
-          tree pack = extract_fnparm_pack (t, &s);
-          register_local_specialization (pack, t);
-        }
+	{
+	  tree pack = extract_fnparm_pack (t, &s);
+	  register_local_specialization (pack, t);
+	}
       else
-        {
-          register_local_specialization (s, t);
-          s = DECL_CHAIN (s);
-        }
+	{
+	  register_local_specialization (s, t);
+	  s = DECL_CHAIN (s);
+	}
     }
   return vars;
 }
@@ -1802,7 +1823,7 @@ declare_constraint_vars (tree parms, tree vars)
 
 tree
 tsubst_constraint_variables (tree t, tree args,
-                             tsubst_flags_t complain, tree in_decl)
+			     tsubst_flags_t complain, tree in_decl)
 {
   /* Clear cp_unevaluated_operand across tsubst so that we get a proper chain
      of PARM_DECLs.  */
@@ -1833,63 +1854,106 @@ tsubst_parameterized_constraint (tree t, tree args,
   return build_nt (PARM_CONSTR, vars, expr);
 }
 
-/* Substitute ARGS into the simple requirement T. Note that
-   substitution may result in an ill-formed expression without
-   causing the program to be ill-formed. In such cases, the
-   requirement wraps an error_mark_node. */
+/* Substitute through the simple requirement.  */
 
-inline tree
+static tree
 tsubst_simple_requirement (tree t, tree args,
-                           tsubst_flags_t complain, tree in_decl)
+			   tsubst_flags_t complain, tree in_decl)
 {
-  ++processing_template_decl;
-  tree expr = tsubst_expr (TREE_OPERAND (t, 0), args, complain, in_decl, false);
-  --processing_template_decl;
+  tree t0 = TREE_OPERAND (t, 0);
+  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  if (expr == error_mark_node)
+    return error_mark_node;
   return finish_simple_requirement (expr);
 }
 
-/* Substitute ARGS into the type requirement T. Note that
-   substitution may result in an ill-formed type without
-   causing the program to be ill-formed. In such cases, the
-   requirement wraps an error_mark_node. */
+/* Substitute through the type requirement.  */
 
 inline tree
 tsubst_type_requirement (tree t, tree args,
-                         tsubst_flags_t complain, tree in_decl)
+			 tsubst_flags_t complain, tree in_decl)
 {
-  ++processing_template_decl;
-  tree type = tsubst (TREE_OPERAND (t, 0), args, complain, in_decl);
-  --processing_template_decl;
+  tree t0 = TREE_OPERAND (t, 0);
+  tree type = tsubst (t0, args, complain, in_decl);
+  if (type == error_mark_node)
+    return error_mark_node;
   return finish_type_requirement (type);
 }
 
-/* Substitute args into the compound requirement T. If substituting
-   into either the expression or the type fails, the corresponding
-   operands in the resulting node will be error_mark_node. This
-   preserves a requirement for the purpose of partial ordering, but
-   it will never be satisfied. */
+/* True if TYPE can be deduced from EXPR.  
+
+   FIXME: Perform decltype deduction, not template argument deduction.  */
+
+static bool
+type_deducible_p (tree expr, tree type)
+{
+  /* FIXME: perform argument deduction.  */
+  return true;
+}
+
+/* True if EXPR can not be converted to TYPE.  */
+
+static bool 
+expression_convertible_t (tree expr, tree type, tsubst_flags_t complain)
+{
+  /* FIXME: For some reason, the conversion was calling the
+     function below, but that doesn't correctly diagnose errors
+     for non-class types.  Maybe that's not a problem if we
+     build our diagnostics more carefully.  */
+  tree conv = perform_implicit_conversion (type, expr, complain);
+  if (conv == error_mark_node)
+    return false;
+
+#if 0 
+  tree conv =
+    perform_direct_initialization_if_possible (type, expr, false, complain);
+  if (conv == NULL_TREE || conv == error_mark_node)
+    return false;
+#endif
+  return true;
+}
+
+
+/* Substitute through the compound requirement.  */
 
 tree
 tsubst_compound_requirement (tree t, tree args,
-                             tsubst_flags_t complain, tree in_decl)
+			     tsubst_flags_t complain, tree in_decl)
 {
-  ++processing_template_decl;
-  tree expr = tsubst_expr (TREE_OPERAND (t, 0), args, complain, in_decl, false);
-  tree type = tsubst (TREE_OPERAND (t, 1), args, complain, in_decl);
-  --processing_template_decl;
+  tree t0 = TREE_OPERAND (t, 0);
+  tree t1 = TREE_OPERAND (t, 1);
+  
+  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  if (expr == error_mark_node)
+    return error_mark_node;
+  
+  tree type = tsubst (t1, args, complain, in_decl);
+  if (type == error_mark_node)
+    return error_mark_node;
+  
   bool noexcept_p = COMPOUND_REQ_NOEXCEPT_P (t);
+
+  /* Check expression against the result type.  */
+  if (type_uses_auto (type) && !type_deducible_p (expr, type))
+    return error_mark_node;
+  else if (!expression_convertible_t (expr, type, complain)) 
+    return error_mark_node;
+  
+  /* Check the noexcept condition.  */
+  if (noexcept_p && !expr_noexcept_p (expr, tf_none))
+    return error_mark_node;
+
   return finish_compound_requirement (expr, type, noexcept_p);
 }
 
-/* Substitute ARGS into the nested requirement T. */
-
 tree
 tsubst_nested_requirement (tree t, tree args,
-                           tsubst_flags_t complain, tree in_decl)
+			   tsubst_flags_t complain, tree in_decl)
 {
-  ++processing_template_decl;
-  tree expr = tsubst_expr (TREE_OPERAND (t, 0), args, complain, in_decl, false);
-  --processing_template_decl;
+  tree t0 = TREE_OPERAND (t, 0);
+  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  if (expr == error_mark_node)
+    return error_mark_node;
   return finish_nested_requirement (expr);
 }
 
@@ -1909,9 +1973,9 @@ tsubst_requirement (tree t, tree args, tsubst_flags_t complain, tree in_decl)
     case NESTED_REQ:
       return tsubst_nested_requirement (t, args, complain, in_decl);
     default:
-      gcc_unreachable ();
+      break;
     }
-  return error_mark_node;
+  gcc_unreachable ();
 }
 
 /* Substitute ARGS into the list of requirements T. Note that
@@ -1919,31 +1983,47 @@ tsubst_requirement (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
 tree
 tsubst_requirement_body (tree t, tree args,
-                         tsubst_flags_t complain, tree in_decl)
+			 tsubst_flags_t complain, tree in_decl)
 {
-  tree r = NULL_TREE;
+  tree result = NULL_TREE;
   while (t)
     {
-      tree e = tsubst_requirement (TREE_VALUE (t), args, complain, in_decl);
-      if (e == error_mark_node)
-        return error_mark_node;
-      r = tree_cons (NULL_TREE, e, r);
+      tree req = tsubst_requirement (TREE_VALUE (t), args, complain, in_decl);
+      if (req == error_mark_node)
+	return error_mark_node;
+      result = tree_cons (NULL_TREE, req, result);
       t = TREE_CHAIN (t);
     }
-  /* Ensure that the order of constraints is the same as the original.  */
-  return nreverse (r);
+  return nreverse (result);
 }
 
 } /* namespace */
 
-/* Substitute ARGS into the requires expression T. Note that this
-   results in the re-declaration of local parameters when
-   substituting through the parameter list. If either substitution
-   fails, the program is ill-formed. */
+/* Substitute ARGS into the requires-expression T. [8.4.7]p6. The
+   substitution of template arguments into a requires-expression 
+   may result in the formation of invalid types or expressions
+   in its requirements ... In such cases, the expression evaluates
+   to false; it does not cause the program to be ill-formed.
+
+   However, there are cases where substitution must produce a
+   new requires-expression, that is not a template constraint.
+   For example:
+
+        template<typename T>
+        class X {
+          template<typename U>
+          static constexpr bool var = requires (U u) { T::fn(u); };
+        };
+
+   In the instantiation of X<Y> (assuming Y defines fn), then the
+   instantiated requires-expression would include Y::fn(u). If any
+   substitution in the requires-expression fails, we can immediately
+   fold the expression to false, as would be the case e.g., when
+   instantiation X<int>.  */
 
 tree
 tsubst_requires_expr (tree t, tree args,
-                      tsubst_flags_t complain, tree in_decl)
+		      tsubst_flags_t complain, tree in_decl)
 {
   local_specialization_stack stack;
 
@@ -1952,15 +2032,20 @@ tsubst_requires_expr (tree t, tree args,
     {
       parms = tsubst_constraint_variables (parms, args, complain, in_decl);
       if (parms == error_mark_node)
-        return error_mark_node;
+	return boolean_false_node;
     }
 
   tree reqs = TREE_OPERAND (t, 1);
   reqs = tsubst_requirement_body (reqs, args, complain, in_decl);
   if (reqs == error_mark_node)
-    return error_mark_node;
+    return boolean_false_node;
 
-  return finish_requires_expr (parms, reqs);
+  /* In certain cases, produce a new requires-expression. 
+     Otherwise the value of the expression is true.  */
+  if (processing_template_decl && uses_template_parms (args))
+    return finish_requires_expr (parms, reqs);
+  
+  return boolean_true_node;
 }
 
 /* Substitute ARGS into the constraint information CI, producing a new
@@ -1968,7 +2053,7 @@ tsubst_requires_expr (tree t, tree args,
 
 tree
 tsubst_constraint_info (tree t, tree args,
-                        tsubst_flags_t complain, tree in_decl)
+			tsubst_flags_t complain, tree in_decl)
 {
   if (!t || t == error_mark_node || !check_constraint_info (t))
     return NULL_TREE;
@@ -2019,7 +2104,7 @@ tsubst_constraint (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 }
 
 /*---------------------------------------------------------------------------
-                        Constraint satisfaction
+			Constraint satisfaction
 ---------------------------------------------------------------------------*/
 
 /* The following functions determine if a constraint, when
@@ -2035,7 +2120,7 @@ tree satisfy_constraint_1 (tree, tree, tsubst_flags_t, tree);
 
 tree
 satisfy_pack_expansion (tree t, tree args,
-                      tsubst_flags_t complain, tree in_decl)
+		      tsubst_flags_t complain, tree in_decl)
 {
   /* Get the vector of satisfaction results.
      gen_elem_of_pack_expansion_instantiation will check that each element of
@@ -2064,7 +2149,7 @@ satisfy_pack_expansion (tree t, tree args,
 
 tree
 satisfy_predicate_constraint (tree t, tree args,
-                              tsubst_flags_t complain, tree in_decl)
+			      tsubst_flags_t complain, tree in_decl)
 {
   tree expr = TREE_OPERAND (t, 0);
 
@@ -2083,9 +2168,9 @@ satisfy_predicate_constraint (tree t, tree args,
   tree type = cv_unqualified (TREE_TYPE (expr));
   if (!same_type_p (type, boolean_type_node))
     {
-      error_at (cp_expr_loc_or_loc (expr, input_location),
-                "constraint %qE does not have type %qT",
-                expr, boolean_type_node);
+      error_at (EXPR_LOC_OR_LOC (expr, input_location),
+		"constraint %qE does not have type %qT",
+		expr, boolean_type_node);
       return boolean_false_node;
     }
 
@@ -2097,7 +2182,7 @@ satisfy_predicate_constraint (tree t, tree args,
 
 tree
 satisfy_check_constraint (tree t, tree args,
-                          tsubst_flags_t complain, tree in_decl)
+			  tsubst_flags_t complain, tree in_decl)
 {
   tree decl = CHECK_CONSTR_CONCEPT (t);
   tree cargs = CHECK_CONSTR_ARGS (t);
@@ -2123,7 +2208,7 @@ satisfy_check_constraint (tree t, tree args,
 
 tree
 satisfy_expression_constraint (tree t, tree args,
-                               tsubst_flags_t complain, tree in_decl)
+			       tsubst_flags_t complain, tree in_decl)
 {
   cp_unevaluated guard;
   deferring_access_check_sentinel deferring;
@@ -2142,7 +2227,7 @@ satisfy_expression_constraint (tree t, tree args,
 
 inline tree
 satisfy_type_constraint (tree t, tree args,
-                         tsubst_flags_t complain, tree in_decl)
+			 tsubst_flags_t complain, tree in_decl)
 {
   deferring_access_check_sentinel deferring;
   tree type = TYPE_CONSTR_TYPE (t);
@@ -2159,7 +2244,7 @@ satisfy_type_constraint (tree t, tree args,
 
 tree
 satisfy_implicit_conversion_constraint (tree t, tree args,
-                                        tsubst_flags_t complain, tree in_decl)
+					tsubst_flags_t complain, tree in_decl)
 {
   /* Don't tsubst as if we're processing a template. If we try
      to we can end up generating template-like expressions
@@ -2188,7 +2273,7 @@ satisfy_implicit_conversion_constraint (tree t, tree args,
 
 tree
 satisfy_argument_deduction_constraint (tree t, tree args,
-                                       tsubst_flags_t complain, tree in_decl)
+				       tsubst_flags_t complain, tree in_decl)
 {
   /* Substitute through the expression. */
   tree expr = DEDUCT_CONSTR_EXPR (t);
@@ -2205,7 +2290,7 @@ satisfy_argument_deduction_constraint (tree t, tree args,
     = tsubst_constraint (constr, args, complain|tf_partial, in_decl);
   TYPE_CANONICAL (placeholder) = NULL_TREE;
   tree type = do_auto_deduction (pattern, init, placeholder,
-                                 complain, adc_requirement);
+				 complain, adc_requirement);
   PLACEHOLDER_TYPE_CONSTRAINTS (placeholder) = constr;
   TYPE_CANONICAL (placeholder) = type_canonical;
   if (type == error_mark_node)
@@ -2219,7 +2304,7 @@ satisfy_argument_deduction_constraint (tree t, tree args,
 
 tree
 satisfy_exception_constraint (tree t, tree args,
-                              tsubst_flags_t complain, tree in_decl)
+			      tsubst_flags_t complain, tree in_decl)
 {
   tree expr = EXCEPT_CONSTR_EXPR (t);
   tree check = tsubst_expr (expr, args, complain, in_decl, false);
@@ -2236,7 +2321,7 @@ satisfy_exception_constraint (tree t, tree args,
 
 tree
 satisfy_parameterized_constraint (tree t, tree args,
-                                  tsubst_flags_t complain, tree in_decl)
+				  tsubst_flags_t complain, tree in_decl)
 {
   local_specialization_stack stack;
   tree parms = PARM_CONSTR_PARMS (t);
@@ -2333,6 +2418,185 @@ satisfy_constraint_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl)
   return boolean_false_node;
 }
 
+/* Information provided to substitution.  */
+struct subst_info
+{
+  tsubst_flags_t complain;
+  tree in_decl;
+};
+
+static tree cxx_satisfy_expression (tree, tree, subst_info info);
+
+/* Compute the satisfaction of a conjunction.  */
+
+static inline tree
+cxx_satisfy_conjunction (tree expr, tree args, subst_info info) 
+{
+  tree lhs = cxx_satisfy_expression (TREE_OPERAND (expr, 0), args, info);
+  if (lhs == boolean_false_node)
+    return boolean_false_node;
+  return cxx_satisfy_expression (TREE_OPERAND (expr, 1), args, info);
+}
+
+/* Compute the satisfaction of a disjunction.  */
+
+static inline tree
+cxx_satisfy_disjunction (tree expr, tree args, subst_info info) 
+{
+  tree lhs = cxx_satisfy_expression (TREE_OPERAND (expr, 0), args, info);
+  if (lhs == boolean_true_node)
+    return boolean_true_node;
+  return cxx_satisfy_expression (TREE_OPERAND (expr, 1), args, info);
+}
+
+/* Compute the satisfaction of an concept check constraint. Note that
+   EXPR is a substituted template-id whose arguments will becoeme the
+   innermost arguments for the recursive substitution into the
+   definition of named concept.  */
+
+static tree
+cxx_satisfy_check (tree idexpr, subst_info info)
+{
+  gcc_assert (TREE_CODE (idexpr) == TEMPLATE_ID_EXPR);
+  tree tmpl = TREE_OPERAND (idexpr, 0);
+  tree args = TREE_OPERAND (idexpr, 1);
+
+  /* TODO: We're going to need to reconstitute the parameter 
+     mapping by making the innermost arguments those instantiated 
+     with the concept check.  */
+
+  gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
+  tree def = DECL_INITIAL (DECL_TEMPLATE_RESULT (tmpl));
+  
+  info.in_decl = tmpl;
+  tree result = cxx_satisfy_expression (def, args, info);
+  if (result == boolean_true_node)
+    return boolean_true_node;
+  return boolean_false_node;
+
+#if 0
+  /* Evaluate the constraint quietly. If we want to diagnose 
+     errors, we'd like to indicate the concept in which error 
+     occurs.  */
+  subst_info quiet { tf_none, info.in_decl };
+  tree result = cxx_satisfy_expression (def, new_args, quiet);
+  if (result == boolean_true_node)
+    return boolean_true_node;
+
+  if (info.complain & tf_error)
+    {
+      tree tmpl = DECL_TI_TEMPLATE (con);
+      tree id = build_nt (TEMPLATE_ID_EXPR, tmpl, new_args);
+      inform (DECL_SOURCE_LOCATION (con), "when checking concept %qE", id);
+      cxx_satisfy_expression (def, new_args, info);
+    }
+#endif
+  return boolean_false_node;
+}
+
+/* Returns true if this expression is a concept check: a template-id
+   whose template-name refers to a concept.  */
+
+static inline bool
+concept_check_p (tree expr)
+{
+  if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
+    return concept_definition_p (TREE_OPERAND (expr, 0));
+  return false;
+}
+
+static void cxx_diagnose_atom (tree, tree, tree);
+
+/* Compute the satisfaction of an atomic costraint.  */
+
+static tree
+cxx_satisfy_atom (tree expr, tree args, subst_info info)
+{
+  /* Apply the parameter mapping (i.e., just substitute).  */
+  tree result = tsubst_expr (expr, args, info.complain, info.in_decl, false);
+  if (result == error_mark_node)
+    return boolean_false_node;
+
+  if (concept_check_p (result))
+    return cxx_satisfy_check (result, info);
+
+  /* [17.4.1.2] ... lvalue-to-value conversion is performed as
+     necessary, and EXPR shall be a constant expression of type
+     bool. Note that the boolean-ness of atomic constraints is a
+     hard error.  */
+  result = force_rvalue (result, info.complain);
+  if (result == error_mark_node)
+    return boolean_false_node;
+  
+  tree type = cv_unqualified (TREE_TYPE (result));
+  if (!same_type_p (type, boolean_type_node))
+    {
+      error_at (EXPR_LOC_OR_LOC (result, input_location),
+		"atomic constraint %qE does not have type %qT",
+		result, boolean_type_node);
+      return boolean_false_node;
+    }
+
+  /* Don't evaluate if we already have a value.  This suppresses 
+     spurious diagnostics when checking requires-expressions.  */
+  if (result == boolean_true_node || result == boolean_false_node)
+    return result;
+
+  /*  Evaluate the result. Note that this can fail.  */
+  result = cxx_constant_value (result);
+  if (result == boolean_true_node)
+    return result;
+  if (result == error_mark_node)
+    return boolean_false_node;
+  
+  /* The result is false. Possibly diagnose the error. */
+  if (info.complain & tf_warning_or_error)
+    cxx_diagnose_atom (expr, args, info.in_decl);
+  return boolean_false_node;
+}
+
+/* Determine if the expression T, when normalized, is satisfied. 
+   Returns boolean_true_node if the expression/constraint is
+   satisfied and boolean_false_node otherwise.
+  
+   True normalization is not explicitly required here; we can
+   simply decompose the expression as normalizing the constraint.
+   The earlier, TS-based implementation normalized prior to
+   satisfaction, which could produce substitution failures in
+   cases where they might have been short-circuited. In this
+   implementation, we only substitute into atomic constraints.
+
+   Note that we need to propagate a multi-level template
+   argument list through the satisfaction algorithm. That the
+   list is multi-leveled allows us to fully defer substitutions
+   through constraints of constrained members.
+
+   The parameter mapping of atomic constraints is simply the
+   set of template arguments that will be substituted into
+   the expression, regardless of template parameters appearing
+   withing. We could make this explicit, but it doesn't seem
+   to offer any real benefit.  */
+
+static tree 
+cxx_satisfy_expression (tree expr, tree args, subst_info info)
+{
+  /* Sometimes an invalid parse yields a null expression.
+     Interpret that as false, just so we don't ICE.  */
+  if (!expr)
+    return boolean_false_node;
+
+  switch (TREE_CODE (expr))
+    {
+      case TRUTH_ANDIF_EXPR:
+	return cxx_satisfy_conjunction (expr, args, info);
+      case TRUTH_ORIF_EXPR:
+	return cxx_satisfy_disjunction (expr, args, info);
+      default:
+	return cxx_satisfy_atom (expr, args, info);
+    }
+  gcc_unreachable ();
+}
+
 /* Check that the constraint is satisfied, according to the rules
    for that constraint. Note that each satisfy_* function returns
    true or false, depending on whether it is satisfied or not.  */
@@ -2353,7 +2617,9 @@ satisfy_constraint (tree t, tree args)
   if (args == NULL_TREE)
     args = make_tree_vec (1);
 
-  return satisfy_constraint_1 (t, args, tf_none, NULL_TREE);
+  // return satisfy_constraint_1 (t, args, tf_none, NULL_TREE);
+  subst_info info {tf_none, NULL_TREE};
+  return cxx_satisfy_expression (t, args, info);
 }
 
 /* Check the associated constraints in CI against the given
@@ -2413,6 +2679,7 @@ evaluate_concept (tree c, tree args)
 tree
 evaluate_function_concept (tree fn, tree args)
 {
+  gcc_assert (false);
   tree constr = build_nt (CHECK_CONSTR, fn, args);
   return satisfy_constraint (constr, args);
 }
@@ -2425,19 +2692,17 @@ evaluate_function_concept (tree fn, tree args)
 tree
 evaluate_variable_concept (tree var, tree args)
 {
+  gcc_assert (false);
   tree constr = build_nt (CHECK_CONSTR, var, args);
   return satisfy_constraint (constr, args);
 }
 
-/* Evaluate the given expression as if it were a predicate
-   constraint. Returns boolean_true_node if the constraint
-   is satisfied and boolean_false_node otherwise. */
+/* Evaluate EXPR as a constraint expression using ARGS.  */
 
 tree
 evaluate_constraint_expression (tree expr, tree args)
 {
-  tree constr = normalize_expression (expr);
-  return satisfy_constraint (constr, args);
+  return satisfy_constraint (expr, args);
 }
 
 /* Returns true if the DECL's constraints are satisfied.
@@ -2499,11 +2764,12 @@ constraint_expression_satisfied_p (tree expr, tree args)
 } /* namespace */
 
 /*---------------------------------------------------------------------------
-                Semantic analysis of requires-expressions
+		Semantic analysis of requires-expressions
 ---------------------------------------------------------------------------*/
 
 /* Finish a requires expression for the given PARMS (possibly
-   null) and the non-empty sequence of requirements. */
+   null) and the non-empty sequence of requirements.  */
+
 tree
 finish_requires_expr (tree parms, tree reqs)
 {
@@ -2523,14 +2789,16 @@ finish_requires_expr (tree parms, tree reqs)
   return r;
 }
 
-/* Construct a requirement for the validity of EXPR. */
+/* Construct a requirement for the validity of EXPR.   */
+
 tree
 finish_simple_requirement (tree expr)
 {
   return build_nt (SIMPLE_REQ, expr);
 }
 
-/* Construct a requirement for the validity of TYPE. */
+/* Construct a requirement for the validity of TYPE.  */
+
 tree
 finish_type_requirement (tree type)
 {
@@ -2541,7 +2809,8 @@ finish_type_requirement (tree type)
    its properties. if TYPE is non-null, then it specifies either
    an implicit conversion or argument deduction constraint,
    depending on whether any placeholders occur in the type name.
-   NOEXCEPT_P is true iff the noexcept keyword was specified. */
+   NOEXCEPT_P is true iff the noexcept keyword was specified.  */
+
 tree
 finish_compound_requirement (tree expr, tree type, bool noexcept_p)
 {
@@ -2550,7 +2819,8 @@ finish_compound_requirement (tree expr, tree type, bool noexcept_p)
   return req;
 }
 
-/* Finish a nested requirement. */
+/* Finish a nested requirement.  */
+
 tree
 finish_nested_requirement (tree expr)
 {
@@ -2587,7 +2857,7 @@ check_function_concept (tree fn)
 	    error_at (loc, "definition of concept %qD is empty", fn);
 	}
       else
-        error_at (loc, "definition of concept %qD has multiple statements", fn);
+	error_at (loc, "definition of concept %qD has multiple statements", fn);
     }
 
   return NULL_TREE;
@@ -2619,7 +2889,7 @@ check_constrained_friend (tree fn, tree reqs)
 }
 
 /*---------------------------------------------------------------------------
-                        Equivalence of constraints
+			Equivalence of constraints
 ---------------------------------------------------------------------------*/
 
 /* Returns true when A and B are equivalent constraints.  */
@@ -2642,7 +2912,7 @@ equivalently_constrained (tree d1, tree d2)
 }
 
 /*---------------------------------------------------------------------------
-                     Partial ordering of constraints
+		     Partial ordering of constraints
 ---------------------------------------------------------------------------*/
 
 /* Returns true when the the constraints in A subsume those in B.  */
@@ -2698,7 +2968,7 @@ at_least_as_constrained (tree d1, tree d2)
 
 
 /*---------------------------------------------------------------------------
-                        Constraint diagnostics
+			Constraint diagnostics
 
 FIXME: Normalize expressions into constraints before evaluating them.
 This should be the general pattern for all such diagnostics.
@@ -2893,7 +3163,7 @@ diagnose_pack_expansion (location_t loc, tree, tree cur, tree args)
     {
       tree expr = TREE_VEC_ELT (exprs, i);
       if (!constraint_expression_satisfied_p (expr, args))
-        inform (loc, "    %qE was not satisfied", expr);
+	inform (loc, "    %qE was not satisfied", expr);
     }
 }
 
@@ -2916,7 +3186,7 @@ diagnose_check_constraint (location_t loc, tree orig, tree cur, tree args)
   if (targs == error_mark_node)
     {
       if (elide_constraint_failure_p ())
-        return;
+	return;
       inform (loc, "invalid use of the concept %qE", check);
       tsubst (cargs, args, tf_warning_or_error, NULL_TREE);
       return;
@@ -2928,7 +3198,7 @@ diagnose_check_constraint (location_t loc, tree orig, tree cur, tree args)
   if (cur == error_mark_node)
     {
       if (elide_constraint_failure_p ())
-        return;
+	return;
       inform (loc, "in the expansion of concept %<%E %S%>", check, sub);
       cur = get_concept_definition (decl);
       tsubst_expr (cur, targs, tf_warning_or_error, NULL_TREE, false);
@@ -3093,10 +3363,10 @@ diagnose_parameterized_constraint (location_t loc, tree orig, tree cur,
   if (vars == error_mark_node)
     {
       if (elide_constraint_failure_p ())
-        return;
+	return;
 
       /* TODO: Check which variable failed and use orig to diagnose
-         that substitution error.  */
+	 that substitution error.  */
       inform (loc, "failed to instantiate constraint variables");
       return;
     }
@@ -3175,6 +3445,118 @@ diagnose_constraint (location_t loc, tree orig, tree cur, tree args)
     }
 }
 
+
+/* Emit a diagnostic for a trait.  */
+
+void
+cxx_diagnose_trait (location_t loc, tree expr, tree args)
+{
+  /* Substitute into the expression to produce the operands.  */
+  ++processing_template_decl;
+  expr = tsubst_expr (expr, args, tf_none, NULL_TREE, false);
+  --processing_template_decl;
+
+  tree t1 = TRAIT_EXPR_TYPE1 (expr);
+  tree t2 = TRAIT_EXPR_TYPE2 (expr);
+  switch (TRAIT_EXPR_KIND (expr))
+    {
+    case CPTK_HAS_NOTHROW_ASSIGN:
+      inform (loc, "  %qT is not nothrow copy assignable", t1);
+      break;
+    case CPTK_HAS_NOTHROW_CONSTRUCTOR:
+      inform (loc, "  %qT is not nothrow default constructible", t1);
+      break;
+    case CPTK_HAS_NOTHROW_COPY:
+      inform (loc, "  %qT is not nothrow copy constructible", t1);
+      break;
+    case CPTK_HAS_TRIVIAL_ASSIGN:
+      inform (loc, "  %qT is not trivially copy assignable", t1);
+      break;
+    case CPTK_HAS_TRIVIAL_CONSTRUCTOR:
+      inform (loc, "  %qT is not trivially default constructible", t1);
+      break;
+    case CPTK_HAS_TRIVIAL_COPY:
+      inform (loc, "  %qT is not trivially copy constructible", t1);
+      break;
+    case CPTK_HAS_TRIVIAL_DESTRUCTOR:
+      inform (loc, "  %qT is not trivially destructible", t1);
+      break;
+    case CPTK_HAS_VIRTUAL_DESTRUCTOR:
+      inform (loc, "  %qT does not have a virtual destructor", t1);
+      break;
+    case CPTK_IS_ABSTRACT:
+      inform (loc, "  %qT is not an abstract class", t1);
+      break;
+    case CPTK_IS_BASE_OF:
+      inform (loc, "  %qT is not a base of %qT", t1, t2);
+      break;
+    case CPTK_IS_CLASS:
+      inform (loc, "  %qT is not a class", t1);
+      break;
+    case CPTK_IS_EMPTY:
+      inform (loc, "  %qT is not an empty class", t1);
+      break;
+    case CPTK_IS_ENUM:
+      inform (loc, "  %qT is not an enum", t1);
+      break;
+    case CPTK_IS_FINAL:
+      inform (loc, "  %qT is not a final class", t1);
+      break;
+    case CPTK_IS_LITERAL_TYPE:
+      inform (loc, "  %qT is not a literal type", t1);
+      break;
+    case CPTK_IS_POD:
+      inform (loc, "  %qT is not a POD type", t1);
+      break;
+    case CPTK_IS_POLYMORPHIC:
+      inform (loc, "  %qT is not a polymorphic type", t1);
+      break;
+    case CPTK_IS_SAME_AS:
+      inform (loc, "  %qT is not the same as %qT", t1, t2);
+      break;
+    case CPTK_IS_STD_LAYOUT:
+      inform (loc, "  %qT is not an standard layout type", t1);
+      break;
+    case CPTK_IS_TRIVIAL:
+      inform (loc, "  %qT is not a trivial type", t1);
+      break;
+    case CPTK_IS_UNION:
+      inform (loc, "  %qT is not a union", t1);
+      break;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Emit a diagnostic for the expression.  */
+
+static void
+cxx_diagnose_expression (location_t loc, tree expr, tree args, tree in_decl)
+{
+  switch (TREE_CODE (expr))
+    {
+      default:
+	error_at (EXPR_LOC_OR_LOC (expr, loc), 
+		  "the constraint %qE evaluated to %<false%>", expr);
+    }
+}
+
+/* Emit a diagnostic for the constraint.  */
+
+static void
+cxx_diagnose_atom (tree expr, tree args, tree in_decl)
+{
+  /* FIXME: The source locations for atomic constraints are wrong. They
+     aren't being set during parsing and using a declaration loc
+     gives the wrong information.  */
+  location_t loc = in_decl ? DECL_SOURCE_LOCATION (in_decl) : input_location;
+  
+  if (TREE_CODE (expr) == TRAIT_EXPR)
+    return cxx_diagnose_trait (loc, expr, args);
+  else
+    return cxx_diagnose_expression (loc, expr, args, in_decl);
+}
+
 /* Diagnose the reason(s) why ARGS do not satisfy the constraints
    of declaration DECL. */
 
@@ -3191,10 +3573,18 @@ diagnose_declaration_constraints (location_t loc, tree decl, tree args)
 	args = TI_ARGS (ti);
     }
 
-  /* Recursively diagnose the associated constraints.  */
-  tree ci = get_constraints (decl);
-  tree t = CI_ASSOCIATED_CONSTRAINTS (ci);
-  diagnose_constraint (loc, t, t, args);
+  /* Recursively diagnose the associated constraints by noisily 
+     re-running satisfaction on the associated constraints.  
+
+     FIXME: Re-calling satisfy_expression leads to bottom-up
+     ordering of constraints. We get the "leaf" errors before we
+     get any context. Maybe that's helpful if we can get
+     the diagnostic facilities to aggregate errors in particular
+     contexts, but right now, it leads to an "upside-down
+     and redundant interpretation of diagnostics.  */
+  tree expr = CI_ASSOCIATED_CONSTRAINTS (get_constraints (decl));
+  subst_info info { tf_warning_or_error, decl };
+  cxx_satisfy_expression (expr, args, info);
 }
 
 } // namespace
@@ -3208,7 +3598,7 @@ diagnose_constraints (location_t loc, tree t, tree args)
 {
   constraint_errors = 0;
 
-  if (constraint_p (t))
+  if (constraint_p (t)) /* FIXME: Should never be a cosntraint.  */
     diagnose_constraint (loc, t, t, args);
   else if (DECL_P (t))
     diagnose_declaration_constraints (loc, t, args);

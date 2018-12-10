@@ -8770,12 +8770,7 @@ grokfndecl (tree ctype,
     {
       tree tmpl_reqs = NULL_TREE;
       if (processing_template_decl > template_class_depth (ctype))
-        tmpl_reqs = TEMPLATE_PARMS_CONSTRAINTS (current_template_parms);
-
-      /* Adjust the required expression into a constraint. */
-      if (decl_reqs)
-        decl_reqs = normalize_expression (decl_reqs);
-
+        tmpl_reqs = TEMPLATE_PARMS_CONSTRAINTS (current_template_parms);      
       tree ci = build_constraints (tmpl_reqs, decl_reqs);
       set_constraints (decl, ci);
     }

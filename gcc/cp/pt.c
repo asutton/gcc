@@ -16013,6 +16013,7 @@ tsubst_copy (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
     default:
       /* We shouldn't get here, but keep going if !flag_checking.  */
+      debug_tree (t);
       if (flag_checking)
 	gcc_unreachable ();
       return t;
