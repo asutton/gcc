@@ -1,5 +1,10 @@
 2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Fix constraint unpacking bug.
+	* constraint.cc (strictly_subsumes): Allow non-templates as arguments.
+
+2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Add constrained parameters to template comparisons.
 	* pt.c (template_parameters_equivalent_p): Compare associated
 	constraints.

@@ -2758,12 +2758,12 @@ strictly_subsumes (tree a, tree b)
 int
 more_constrained (tree d1, tree d2)
 {
-  tree tmpl1 = DECL_TI_TEMPLATE (d1);
+  tree tmpl1 = TREE_CODE (d1) == TEMPLATE_DECL ? d1 : DECL_TI_TEMPLATE (d1);
   tree args1 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl1));
   tree c1 = get_constraints (tmpl1);
   tree e1 = c1 ? CI_ASSOCIATED_CONSTRAINTS (c1) : NULL_TREE;
 
-  tree tmpl2 = DECL_TI_TEMPLATE (d2);
+  tree tmpl2 = TREE_CODE (d2) == TEMPLATE_DECL ? d2 : DECL_TI_TEMPLATE (d2);
   tree args2 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl2));
   tree c2 = get_constraints (tmpl2);
   tree e2 = c2 ? CI_ASSOCIATED_CONSTRAINTS (c2) : NULL_TREE;
