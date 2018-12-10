@@ -7692,7 +7692,6 @@ extern int more_constrained                     (tree, tree);
 extern void diagnose_constraints                (location_t, tree, tree);
 
 /* in logic.cc */
-extern tree decompose_conclusions               (tree);
 extern bool subsumes                            (tree, tree);
 
 /* In class.c */

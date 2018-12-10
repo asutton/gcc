@@ -1,5 +1,11 @@
 2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Cleanup of logic code.
+	* cp-tree.h (decompose_conclusions): Remove.
+	* logic.cc: Remove #if 0'd code.
+
+2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Update the implementation of constrained parameters.
 	* constraint.cc (resolve_concept_check): New.
 	(deduce_constrained_parameter): Check if the identifier or template-id
