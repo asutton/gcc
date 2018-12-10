@@ -3258,36 +3258,44 @@ comp_template_parms (const_tree parms1, const_tree parms2)
 static bool
 template_parameters_equivalent_p (const_tree parm1, const_tree parm2)
 {
+  tree decl1 = TREE_VALUE (parm1);
+  tree decl2 = TREE_VALUE (parm2);
+
   /* If either of the template parameters are invalid, assume
      they match for the sake of error recovery. */
-  if (error_operand_p (parm1) || error_operand_p (parm2))
+  if (error_operand_p (decl1) || error_operand_p (decl2))
     return true;
 
   /* ... they declare parameters of the same kind.  */
-  if (TREE_CODE (parm1) != TREE_CODE (parm2))
+  if (TREE_CODE (decl1) != TREE_CODE (decl2))
     return false;
 
   /* ... if either declares a pack, they both do.  */
-  if (template_parameter_pack_p (parm1) != template_parameter_pack_p (parm2))
+  if (template_parameter_pack_p (decl1) != template_parameter_pack_p (decl2))
     return false;
 
-  if (TREE_CODE (parm1) == PARM_DECL)
+  if (TREE_CODE (decl1) == PARM_DECL)
     {
       /* ... if they declare non-type parameters, the types are equivalent.  */
-      if (!same_type_p (TREE_TYPE (parm1), TREE_TYPE (parm2)))
+      if (!same_type_p (TREE_TYPE (decl1), TREE_TYPE (decl2)))
 	return false;
     }
-  else if (TREE_CODE (parm2) == TEMPLATE_DECL)
+  else if (TREE_CODE (decl2) == TEMPLATE_DECL)
     {
       /* ... if they declare template template parameters, their template
 	 parameter lists are equivalent.  */
-      if (!template_heads_equivalent_p (parm1, parm2))
+      if (!template_heads_equivalent_p (decl1, decl2))
 	return false;
     }
 
   /* ... if they are declared with a qualified-concept name, they both
      are, and those names are equivalent.  */
-  // FIXME: Implement this!
+  tree req1 = TREE_TYPE (parm1);
+  tree req2 = TREE_TYPE (parm2);
+  if ((req1 != NULL_TREE) != (req2 != NULL_TREE))
+    return false;
+  if (req1)
+    return cp_tree_equal (req1, req2);
 
   return true;
 }
@@ -3321,9 +3329,8 @@ template_parameter_lists_equivalent_p (const_tree parms1, const_tree parms2)
 
       for (int i = 0; i < TREE_VEC_LENGTH (list2); ++i)
 	{
-	  tree parm1 = TREE_VALUE (TREE_VEC_ELT (list1, i));
-	  tree parm2 = TREE_VALUE (TREE_VEC_ELT (list2, i));
-
+	  tree parm1 = TREE_VEC_ELT (list1, i);
+	  tree parm2 = TREE_VEC_ELT (list2, i);
 	  if (!template_parameters_equivalent_p (parm1, parm2))
 	    return false;
 	}

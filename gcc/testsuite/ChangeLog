@@ -1,5 +1,10 @@
 2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Add constrained parameters to template comparisons.
+	* g++.dg/cpp2a/concepts3.C: New tests.
+
+2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Update the implementation of constrained parameters.
 	* g++.dg/cpp2a/concepts3.C: New.
 
