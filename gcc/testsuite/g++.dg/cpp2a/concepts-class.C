@@ -85,3 +85,21 @@ static_assert(S4<two_type>::value == 2, "");
 // Specializations are more specialized.
 template<typename T> requires Two<T> struct S5 { };
 template<typename T> requires One<T> struct S5<T> { }; // { dg-error "does not specialize" }
+
+// Deduction guides
+template <class T>
+concept IsInt = __is_same_as(T,int);
+
+template<typename T>
+struct A
+{
+  int i;
+  A(...);
+};
+
+template<typename I>
+  requires IsInt<I>
+A(I) -> A<I>;
+
+A a(1);
+A a2(1.0);      // { dg-error "class template argument deduction | no matching function for call" }
