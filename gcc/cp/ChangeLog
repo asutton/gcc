@@ -1,5 +1,10 @@
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Remove old constraint-based diagnostics.
+	* constraint.cc: Unify diagnostics into a single set of functions.
+
+2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Revisit diagnostics.
 	* constraint.cc (cxx_satisfy_atom): Add check for bool type.
 	(cxx_diagnose_expression): Add source locations.

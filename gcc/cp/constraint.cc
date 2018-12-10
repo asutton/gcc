@@ -644,7 +644,10 @@ get_variable_initializer (tree var)
 tree
 get_concept_definition (tree decl)
 {
-  if (concept_definition_p (decl))
+  if (TREE_CODE (decl) == TEMPLATE_DECL)
+    decl = DECL_TEMPLATE_RESULT (decl);
+  
+  if (TREE_CODE (decl) == CONCEPT_DECL)
     return DECL_INITIAL (decl);
   if (VAR_P (decl))
     return get_variable_initializer (decl);
@@ -663,15 +666,14 @@ expand_concept (tree tmpl, tree args)
   gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
   gcc_assert (concept_definition_p (tmpl));
 
-  tree decl = DECL_TEMPLATE_RESULT (tmpl);
-  return DECL_INITIAL (decl);
+  return get_concept_definition (tmpl);
 
+  #if 0
   if (TREE_CODE (decl) == TEMPLATE_DECL)
     decl = DECL_TEMPLATE_RESULT (decl);
 
   tree def = get_concept_definition (decl);
 
-  #if 0
   expanding_concept_sentinel sentinel;
 
   if (TREE_CODE (decl) == TEMPLATE_DECL)
@@ -792,7 +794,6 @@ normalize_function_concept_check (tree t, tree args, subst_info info)
 tree
 normalize_concept_check (tree t, tree args, subst_info info)
 {
-  // verbatim ("CHECK %qE", t);
   tree tmpl = TREE_OPERAND (t, 0);
   tree parms = TREE_VALUE (DECL_TEMPLATE_PARMS (tmpl));
   tree subst = coerce_template_parms (parms, TREE_OPERAND (t, 1), tmpl);
@@ -1679,7 +1680,7 @@ type_deducible_p (tree expr, tree type, tree placeholder, tree args,
 /* True if EXPR can not be converted to TYPE.  */
 
 static bool 
-expression_convertible_t (tree expr, tree type, tsubst_flags_t complain)
+expression_convertible_p (tree expr, tree type, tsubst_flags_t complain)
 {
   tree conv =
     perform_direct_initialization_if_possible (type, expr, false, complain);
@@ -1710,26 +1711,28 @@ tsubst_compound_requirement (tree t, tree args,
   tree expr = tsubst_expr (t0, args, complain, in_decl, false);
   if (expr == error_mark_node)
     return error_mark_node;
-  
+
+  /* Check the noexcept condition.  */
+  bool noexcept_p = COMPOUND_REQ_NOEXCEPT_P (t);
+  if (noexcept_p && !expr_noexcept_p (expr, tf_none))
+    return error_mark_node;
+
   tree type = tsubst (t1, args, complain, in_decl);
   if (type == error_mark_node)
     return error_mark_node;
   
-  bool noexcept_p = COMPOUND_REQ_NOEXCEPT_P (t);
-
   /* Check expression against the result type.  */
-  if (tree placeholder = type_uses_auto (type))
+  if (type)
     {
-      if (!type_deducible_p (expr, type, placeholder, args, complain, in_decl))
+      if (tree placeholder = type_uses_auto (type))
+	{
+	  if (!type_deducible_p (expr, type, placeholder, args, complain, in_decl))
+	    return error_mark_node;
+	}
+      else if (!expression_convertible_p (expr, type, complain)) 
 	return error_mark_node;
     }
-  else if (!expression_convertible_t (expr, type, complain)) 
-    return error_mark_node;
   
-  /* Check the noexcept condition.  */
-  if (noexcept_p && !expr_noexcept_p (expr, tf_none))
-    return error_mark_node;
-
   return finish_compound_requirement (expr, type, noexcept_p);
 }
 
@@ -2240,9 +2243,8 @@ cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
   tree tmpl = TREE_OPERAND (idexpr, 0);
   tree args = TREE_OPERAND (idexpr, 1);
 
-  /* TODO: We're going to need to reconstitute the parameter 
-     mapping by making the innermost arguments those instantiated 
-     with the concept check.  */
+  /* Reconstitute the parameter mapping by making the innermost arguments 
+     those instantiated with the concept check.  */
   int n = TREE_VEC_LENGTH (mapping);
   tree subst = make_tree_vec (n);
   for (int i = 2; i <= n; ++i)
@@ -2256,44 +2258,6 @@ cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
   tree result = cxx_satisfy_expression (def, subst, info);
   if (result == boolean_true_node)
     return boolean_true_node;
-  return boolean_false_node;
-
-#if 0
-  /* Evaluate the constraint quietly. If we want to diagnose 
-     errors, we'd like to indicate the concept in which error 
-     occurs.  */
-  subst_info quiet { tf_none, info.in_decl };
-  tree result = cxx_satisfy_expression (def, new_args, quiet);
-  if (result == boolean_true_node)
-    return boolean_true_node;
-
-  if (info.complain & tf_error)
-    {
-      tree tmpl = DECL_TI_TEMPLATE (con);
-      tree id = build_nt (TEMPLATE_ID_EXPR, tmpl, new_args);
-      inform (DECL_SOURCE_LOCATION (con), "when checking concept %qE", id);
-      cxx_satisfy_expression (def, new_args, info);
-    }
-#endif
-  return boolean_false_node;
-}
-
-static void cxx_diagnose_atom (tree, tree, tree);
-
-static tree 
-cxx_evaluate_atom (tree expr, tree orig, tree args, subst_info info)
-{
-  /*  Evaluate the result. Note that this can fail.  */
-  tree result = cxx_constant_value (expr);
-  if (result == boolean_true_node)
-    return result;
-  if (result == error_mark_node)
-    return boolean_false_node;
-  
-  /* Evaluation succeeded, but satisfaction failed. Diagnose the
-     reason for satisfaction failure.  */
-  if (info.complain & tf_warning_or_error)
-    cxx_diagnose_atom (orig, args, info.in_decl);
   return boolean_false_node;
 }
 
@@ -2330,19 +2294,15 @@ cxx_satisfy_atom (tree expr, tree args, subst_info info)
       return boolean_false_node;
     }
 
-  /* Don't evaluate if we already have a value. This suppresses 
-     spurious diagnostics (and infinite recursion) when evaluating 
-     the expression.  */
+  /* If we already computed value, don't try again.  */
+  if (result == boolean_true_node || result == boolean_false_node)
+    return result;
+
+  /* Compute the value of the constraint.  */
+  result = cxx_constant_value (result);
   if (result == boolean_true_node)
     return result;
-  if (result == boolean_false_node)
-    {
-      if (info.complain & tf_warning_or_error)
-	cxx_diagnose_atom (expr, args, info.in_decl);
-      return boolean_false_node;
-    }
-
-  return cxx_evaluate_atom (result, expr, args, info);
+  return boolean_false_node;
 }
 
 /* Determine if the expression T, when normalized, is satisfied. 
@@ -2448,7 +2408,6 @@ satisfy_associated_constraints (tree ci, tree args)
 tree
 evaluate_constraints (tree constr, tree args)
 {
-  gcc_assert (constraint_p (constr));
   return satisfy_constraint (constr, args);
 }
 
@@ -2522,8 +2481,6 @@ constraints_satisfied_p (tree decl)
       /* The initial parameter mapping is the complete set of
          template arguments substituted into the declaration.  */
       args = TI_ARGS (ti);
-      // int depth = TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (tmpl));
-      // args = get_innermost_template_args (TI_ARGS (ti), depth);
     }
   else
     {
@@ -2542,10 +2499,10 @@ bool
 constraints_satisfied_p (tree t, tree args)
 {
   tree eval;
-  if (constraint_p (t))
-    eval = evaluate_constraints (t, args);
-  else
+  if (DECL_P (t))
     eval = satisfy_associated_constraints (get_constraints (t), args);
+  else
+    eval = evaluate_constraints (t, args);
   return eval == boolean_true_node;
 }
 
@@ -2864,94 +2821,10 @@ undiagnosed_constraint_failures ()
 
 namespace {
 
+#if 0
 void diagnose_constraint (location_t, tree, tree, tree);
 
 /* Emit a specific diagnostics for a failed trait.  */
-
-void
-diagnose_trait_expression (location_t loc, tree, tree cur, tree args)
-{
-  if (constraint_expression_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p())
-    return;
-
-  tree expr = PRED_CONSTR_EXPR (cur);
-  ++processing_template_decl;
-  expr = tsubst_expr (expr, args, tf_none, NULL_TREE, false);
-  --processing_template_decl;
-
-  tree t1 = TRAIT_EXPR_TYPE1 (expr);
-  tree t2 = TRAIT_EXPR_TYPE2 (expr);
-  switch (TRAIT_EXPR_KIND (expr))
-    {
-    case CPTK_HAS_NOTHROW_ASSIGN:
-      inform (loc, "  %qT is not nothrow copy assignable", t1);
-      break;
-    case CPTK_HAS_NOTHROW_CONSTRUCTOR:
-      inform (loc, "  %qT is not nothrow default constructible", t1);
-      break;
-    case CPTK_HAS_NOTHROW_COPY:
-      inform (loc, "  %qT is not nothrow copy constructible", t1);
-      break;
-    case CPTK_HAS_TRIVIAL_ASSIGN:
-      inform (loc, "  %qT is not trivially copy assignable", t1);
-      break;
-    case CPTK_HAS_TRIVIAL_CONSTRUCTOR:
-      inform (loc, "  %qT is not trivially default constructible", t1);
-      break;
-    case CPTK_HAS_TRIVIAL_COPY:
-      inform (loc, "  %qT is not trivially copy constructible", t1);
-      break;
-    case CPTK_HAS_TRIVIAL_DESTRUCTOR:
-      inform (loc, "  %qT is not trivially destructible", t1);
-      break;
-    case CPTK_HAS_VIRTUAL_DESTRUCTOR:
-      inform (loc, "  %qT does not have a virtual destructor", t1);
-      break;
-    case CPTK_IS_ABSTRACT:
-      inform (loc, "  %qT is not an abstract class", t1);
-      break;
-    case CPTK_IS_BASE_OF:
-      inform (loc, "  %qT is not a base of %qT", t1, t2);
-      break;
-    case CPTK_IS_CLASS:
-      inform (loc, "  %qT is not a class", t1);
-      break;
-    case CPTK_IS_EMPTY:
-      inform (loc, "  %qT is not an empty class", t1);
-      break;
-    case CPTK_IS_ENUM:
-      inform (loc, "  %qT is not an enum", t1);
-      break;
-    case CPTK_IS_FINAL:
-      inform (loc, "  %qT is not a final class", t1);
-      break;
-    case CPTK_IS_LITERAL_TYPE:
-      inform (loc, "  %qT is not a literal type", t1);
-      break;
-    case CPTK_IS_POD:
-      inform (loc, "  %qT is not a POD type", t1);
-      break;
-    case CPTK_IS_POLYMORPHIC:
-      inform (loc, "  %qT is not a polymorphic type", t1);
-      break;
-    case CPTK_IS_SAME_AS:
-      inform (loc, "  %qT is not the same as %qT", t1, t2);
-      break;
-    case CPTK_IS_STD_LAYOUT:
-      inform (loc, "  %qT is not an standard layout type", t1);
-      break;
-    case CPTK_IS_TRIVIAL:
-      inform (loc, "  %qT is not a trivial type", t1);
-      break;
-    case CPTK_IS_UNION:
-      inform (loc, "  %qT is not a union", t1);
-      break;
-    default:
-      gcc_unreachable ();
-    }
-}
 
 /* Diagnose the expression of a predicate constraint.  */
 
@@ -3230,77 +3103,69 @@ diagnose_parameterized_constraint (location_t loc, tree orig, tree cur,
   cur = PARM_CONSTR_OPERAND (cur);
   return diagnose_constraint (loc, orig, cur, args);
 }
+#endif
 
-/* Diagnose the constraint CUR for the given ARGS. This is only ever invoked
-   on the associated constraints, so we can only have conjunctions of
-   predicate constraints.  The ORIGinal (dependent) constructs follow
-   the current constraints to enable better diagnostics.  Note that ORIG
-   and CUR must be the same kinds of node, except when CUR is an error.  */
+static bool diagnose_constraint (tree, tree, tree);
 
-void
-diagnose_constraint (location_t loc, tree orig, tree cur, tree args)
+/* Returns the location of the constraint expression.  
+
+  FIXME: For some reason locations are not being correctly associated
+  with constraints. I'm not sure why.  */
+static inline location_t
+get_constraint_location (tree expr)
 {
-  switch (TREE_CODE (cur))
-    {
-    case EXPR_CONSTR:
-      diagnose_expression_constraint (loc, orig, cur, args);
-      break;
-
-    case TYPE_CONSTR:
-      diagnose_type_constraint (loc, orig, cur, args);
-      break;
-
-    case ICONV_CONSTR:
-      diagnose_implicit_conversion_constraint (loc, orig, cur, args);
-      break;
-
-    case DEDUCT_CONSTR:
-      diagnose_argument_deduction_constraint (loc, orig, cur, args);
-      break;
-
-    case EXCEPT_CONSTR:
-      diagnose_exception_constraint (loc, orig, cur, args);
-      break;
-
-    case CONJ_CONSTR:
-    case DISJ_CONSTR:
-      diagnose_logical_constraint (loc, orig, cur, args);
-      break;
-
-    case PRED_CONSTR:
-      diagnose_predicate_constraint (loc, orig, cur, args);
-      break;
-
-    case PARM_CONSTR:
-      diagnose_parameterized_constraint (loc, orig, cur, args);
-      break;
-
-    case CHECK_CONSTR:
-      diagnose_check_constraint (loc, orig, cur, args);
-      break;
-
-    case EXPR_PACK_EXPANSION:
-      diagnose_pack_expansion (loc, orig, cur, args);
-      break;
-
-    case ERROR_MARK:
-      /* TODO: Can we improve the diagnostic with the original?  */
-      inform (input_location, "ill-formed constraint");
-      break;
-
-    default:
-      gcc_unreachable ();
-      break;
-    }
+  return EXPR_LOC_OR_LOC (expr, input_location);
 }
 
-
-/* Emit a diagnostic for a trait.  */
+/* Emit a diagnostic for a failed concept check.  */
 
 void
-cxx_diagnose_trait (location_t loc, tree expr, tree args)
+diagnose_check (tree expr, tree args, tree in_decl)
 {
-  /* Substitute into the expression to produce the operands.  */
+  gcc_assert (TREE_CODE (expr) == TEMPLATE_ID_EXPR);
+  tree tmpl = TREE_OPERAND (expr, 0);
+  tree cargs = TREE_OPERAND (expr, 1);
+
+  location_t eloc = get_constraint_location (expr);
+
+  /* Instantiate the concept check arguments.  */
+  tree targs = tsubst (cargs, args, tf_none, in_decl);
+  if (targs == error_mark_node)
+    {
+      inform (eloc, "invalid use of the concept %qE", expr);
+      tsubst (cargs, args, tf_warning_or_error, in_decl);
+    }
+
+  /* Provide context for the error.  */
+  tree subst = build_tree_list (tmpl, targs);
+  location_t dloc = DECL_SOURCE_LOCATION (DECL_TEMPLATE_RESULT (tmpl));
+  inform (dloc, "within %qS", subst);
+
+
+  /* Instantiate the concept definition...  */
+  tree def = get_concept_definition (tmpl);
+  ++processing_template_decl;
+  expr = tsubst_expr (def, targs, tf_none, NULL_TREE, true);
+  --processing_template_decl;
+  if (expr == error_mark_node)
+    {
+      inform (eloc, "in the expansion of concept %<%E %S%>", expr, subst);
+      tsubst_expr (def, targs, tf_warning_or_error, NULL_TREE, false);
+    }
+
+  /* ... and recursively search for diagnosable errors.  */
+  diagnose_constraint (def, targs, tmpl);
+}
+
+/* Emit a diagnostic for a failed trait.  */
+
+void
+diagnose_trait (tree expr, tree args)
+{
+  location_t loc = get_constraint_location (expr);
+
+  /* Build a "fake" version of the instantiated trait, so we can
+     get the instantiated types from result.  */
   ++processing_template_decl;
   expr = tsubst_expr (expr, args, tf_none, NULL_TREE, false);
   --processing_template_decl;
@@ -3377,39 +3242,227 @@ cxx_diagnose_trait (location_t loc, tree expr, tree args)
     }
 }
 
-/* Emit a diagnostic for the expression.  */
+static tree
+diagnose_valid_expression (tree expr, tree args, tree in_decl)
+{
+  ++processing_template_decl;
+  tree result = tsubst_expr (expr, args, tf_none, in_decl, false);
+  --processing_template_decl;
+  if (result != error_mark_node)
+    return result;
+
+  location_t loc = get_constraint_location (expr);
+  inform (loc, "the required expression %qE is invalid", expr);
+  return error_mark_node;
+}
+
+static tree
+diagnose_valid_type (tree type, tree args, tree in_decl)
+{
+  ++processing_template_decl;
+  tree result = tsubst (type, args, tf_none, in_decl);
+  --processing_template_decl;
+  if (result != error_mark_node)
+    return result;
+
+  /* FIXME: The type probably does not have a location.  */
+  location_t loc = get_constraint_location (type);
+  inform (loc, "the required type %qT is invalid", type);
+  return error_mark_node;
+}
 
 static void
-cxx_diagnose_expression (location_t loc, tree expr, tree args, tree in_decl)
+diagnose_simple_requirement (tree req, tree args, tree in_decl)
 {
-  location_t exprloc = EXPR_LOC_OR_LOC (expr, loc);
-  switch (TREE_CODE (expr))
+  tree expr = TREE_OPERAND (req, 0);
+  diagnose_valid_expression (expr, args, in_decl);
+}
+
+static void
+diagnose_compound_requirement (tree req, tree args, tree in_decl)
+{
+  tree expr = TREE_OPERAND (req, 0);
+  expr = diagnose_valid_expression (expr, args, in_decl);
+  if (expr == error_mark_node)
+    return;
+  
+  /* FIXME: What's the right location?  */
+  location_t loc = get_constraint_location (expr);
+
+  /* Check the noexcept condition.  */
+  if (COMPOUND_REQ_NOEXCEPT_P (req) && !expr_noexcept_p (expr, tf_none))
+    inform (loc, "%qE is not %<noexcept%>", expr);
+
+  tree type = TREE_OPERAND (req, 1);
+  type = diagnose_valid_type (type, args, in_decl);
+  if (type == error_mark_node)
+    return;
+
+  if (type)
     {
-      case INTEGER_CST:
-        inform (exprloc, "%qE is never satisfied", expr);
-        break;
-      default:
-        /* FXIME: The error location is wrong; we should point directly
-           at the position of the expression in the original source.  */
-	inform (exprloc, "the constraint evaluated to %<false%>", expr);
-	break;
+      /* Check the expression against the result type.  */
+      if (tree placeholder = type_uses_auto (type))
+	{
+	  if (!type_deducible_p (expr, type, placeholder, args, tf_none, in_decl))
+	    inform (loc, "cannot deduce %qT from %qE", type, expr);
+	}
+      else if (!expression_convertible_p (expr, type, tf_none))
+      inform (loc, "cannot convert %qE to %qT", expr, type);
     }
 }
 
-/* Emit a diagnostic for the constraint.  */
+static void
+diagnose_type_requirement (tree req, tree args, tree in_decl)
+{
+  tree type = TREE_OPERAND (req, 0);
+  diagnose_valid_type (type, args, in_decl);
+}
 
 static void
-cxx_diagnose_atom (tree expr, tree args, tree in_decl)
+diagnose_nested_requirement (tree req, tree args)
 {
-  /* FIXME: The source locations for atomic constraints are wrong. They
-     aren't being set during parsing and using a declaration loc
-     gives the wrong information.  */
-  location_t loc = in_decl ? DECL_SOURCE_LOCATION (in_decl) : input_location;
+  tree expr = TREE_OPERAND (req, 0);
+  if (constraints_satisfied_p (req, args))
+    return;
+  location_t loc = get_constraint_location (expr);
+  inform (loc, "nested requirement %qE is not satisfied", expr);
+}
+
+static void
+diagnose_requiremnt (tree req, tree args, tree in_decl)
+{
+  switch (TREE_CODE (req))
+    {
+    case SIMPLE_REQ:
+      return diagnose_simple_requirement (req, args, in_decl);
+    case COMPOUND_REQ:
+      return diagnose_compound_requirement (req, args, in_decl);
+    case TYPE_REQ:
+      return diagnose_type_requirement (req, args, in_decl);
+    case NESTED_REQ:
+      return diagnose_nested_requirement (req, args);
+    default:
+       debug_tree (req);
+       gcc_unreachable ();
+    }
+}
+
+static void
+diagnose_requires (tree expr, tree args, tree in_decl)
+{
+  local_specialization_stack stack;
+  tree parms = TREE_OPERAND (expr, 0);
+  tree body = TREE_OPERAND (expr, 1);
+
+  tree vars = tsubst_constraint_variables (parms, args, tf_warning_or_error,
+                                           NULL_TREE);
+  if (vars == error_mark_node)
+    return;
+
+  /* TODO: It would be better write these in a list. */
+  while (vars)
+    {
+      location_t loc = DECL_SOURCE_LOCATION (vars);
+      inform (loc, "with constraint variable %q#D", vars);
+      vars = TREE_CHAIN (vars);
+    }
+
+  tree p = body;
+  while (p)
+    {
+      tree req = TREE_VALUE (p);
+      diagnose_requiremnt (req, args, in_decl);
+      p = TREE_CHAIN (p);
+    }
+}
+
+/* Diagnose a conjunction.  Only search one branch; this prevents us
+   from getting duplicate diagnostics.
+   
+   TODO: We could maintain a set of found diagnostics and suppress
+   redundant checks.  */
+static bool
+diagnose_and (tree expr, tree args, tree in_decl)
+{
+  if (diagnose_constraint (TREE_OPERAND (expr, 0), args, in_decl))
+    return true;
+  return diagnose_constraint (TREE_OPERAND (expr, 1), args, in_decl);
+}
+
+/* Diagnose a disjunction. If only one operand fails, search that
+   branch for a diagnostic. If both fail, just diagnose that property;
+   don't recurse.  */
+static bool
+diagnose_or (tree expr, tree args, tree in_decl)
+{
+  tree t1 = TREE_OPERAND (expr, 0);
+  tree t2 = TREE_OPERAND (expr, 1);
   
-  if (TREE_CODE (expr) == TRAIT_EXPR)
-    return cxx_diagnose_trait (loc, expr, args);
-  else
-    return cxx_diagnose_expression (loc, expr, args, in_decl);
+  /* Check satisfaction independently.  */
+  bool sat1 = constraints_satisfied_p (t1, args);
+  bool sat2 = constraints_satisfied_p (t2, args);
+
+  location_t loc = get_constraint_location (expr);
+
+  if (sat1)
+    {
+      if (sat2)
+        /* There are diagnostics in neither operand.  */
+        return false;
+      else
+        /* Search t2 for diagnostics.  */
+        return diagnose_constraint (t2, args, in_decl);
+    }
+  if (sat2)
+    /* Search t1 for diagnostics.  */
+    return diagnose_constraint (t1, args, in_decl);
+
+  /* Neither operand is satisfied, but don't recurse in both.  */
+  inform (loc, "neither %qE nor %qE is satisfied", t1, t2);
+  return true;
+}
+
+/* Emit a diagnostic for the constraint. Returns true if any diagnostics
+   have been emitted.  */
+
+static bool
+diagnose_constraint (tree expr, tree args, tree in_decl)
+{
+  /* Handle disjunction as a special case.  */
+  if (TREE_CODE (expr) == TRUTH_ORIF_EXPR)
+    return diagnose_or (expr, args, in_decl);
+
+  /* If the constraint is satisfied, there are no diagnostics to emit.  */
+  if (constraints_satisfied_p (expr, args))
+    return false;
+
+  location_t loc = get_constraint_location (expr);
+  
+  switch (TREE_CODE (expr))
+    {
+    case TRUTH_ANDIF_EXPR:
+      diagnose_and (expr, args, in_decl);
+      break;
+    case TEMPLATE_ID_EXPR:
+      diagnose_check (expr, args, in_decl);
+      break;
+    case TRAIT_EXPR:
+      diagnose_trait (expr, args);
+      break;
+    case REQUIRES_EXPR:
+      diagnose_requires (expr, args, in_decl);
+      break;
+    case INTEGER_CST:
+      /* This is almost certainly the literal 'false'.  */
+      inform (loc, "%qE is never satisfied", expr);
+      break;
+    default:
+      /* Don't emit the expression; it should be highlighted by
+         the location.  */
+      inform (loc, "the constraint %qE evaluated to %<false%>", expr);
+      break;
+    }
+  return true;
 }
 
 /* Diagnose the reason(s) why ARGS do not satisfy the constraints
@@ -3418,7 +3471,7 @@ cxx_diagnose_atom (tree expr, tree args, tree in_decl)
 void
 diagnose_declaration_constraints (location_t loc, tree decl, tree args)
 {
-  inform (loc, "  constraints not satisfied");
+  inform (loc, "constraints not satisfied");
 
   /* Constraints are attached to the template.  */
   if (tree ti = DECL_TEMPLATE_INFO (decl))
@@ -3441,8 +3494,7 @@ diagnose_declaration_constraints (location_t loc, tree decl, tree args)
      contexts, but right now, it leads to an "upside-down and
      redundant interpretation of diagnostics.  */
   tree expr = CI_ASSOCIATED_CONSTRAINTS (get_constraints (decl));
-  subst_info info { tf_warning_or_error, decl };
-  cxx_satisfy_expression (expr, args, info);
+  diagnose_constraint (expr, args, decl);
 }
 
 } // namespace
@@ -3456,12 +3508,10 @@ diagnose_constraints (location_t loc, tree t, tree args)
 {
   constraint_errors = 0;
 
-  if (constraint_p (t)) /* FIXME: Should never be a cosntraint.  */
-    diagnose_constraint (loc, t, t, args);
-  else if (DECL_P (t))
+  if (DECL_P (t))
     diagnose_declaration_constraints (loc, t, args);
   else
-    gcc_unreachable ();
+    diagnose_constraint (t, t, args);
 
   /* Note the number of elided failures. */
   int n = undiagnosed_constraint_failures ();
