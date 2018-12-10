@@ -2776,9 +2776,6 @@ at_least_as_constrained (tree d1, tree d2)
 
 /*---------------------------------------------------------------------------
 			Constraint diagnostics
-
-FIXME: Normalize expressions into constraints before evaluating them.
-This should be the general pattern for all such diagnostics.
 ---------------------------------------------------------------------------*/
 
 /* The number of detailed constraint failures.  */
@@ -2791,7 +2788,7 @@ int constraint_errors = 0;
    FIXME: This is a really arbitrary number. Provide better control of
    constraint diagnostics with a command line option.  */
 
-int constraint_thresh = 20;
+int constraint_threshold = 20;
 
 
 /* Returns true if we should elide the diagnostic for a constraint failure.
@@ -2801,7 +2798,7 @@ int constraint_thresh = 20;
 inline bool
 elide_constraint_failure_p ()
 {
-  bool ret = constraint_thresh <= constraint_errors;
+  bool ret = constraint_threshold <= constraint_errors;
   ++constraint_errors;
   return ret;
 }
@@ -2811,299 +2808,8 @@ elide_constraint_failure_p ()
 inline int
 undiagnosed_constraint_failures ()
 {
-  return constraint_errors - constraint_thresh;
+  return constraint_errors - constraint_threshold;
 }
-
-/* The diagnosis of constraints performs a combination of normalization
-   and satisfaction testing. We recursively walk through the conjunction or
-   disjunction of associated constraints, testing each sub-constraint in
-   turn.  */
-
-namespace {
-
-#if 0
-void diagnose_constraint (location_t, tree, tree, tree);
-
-/* Emit a specific diagnostics for a failed trait.  */
-
-/* Diagnose the expression of a predicate constraint.  */
-
-void
-diagnose_other_expression (location_t loc, tree, tree cur, tree args)
-{
-  if (constraint_expression_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p())
-    return;
-  inform (loc, "%qE evaluated to false", cur);
-}
-
-/* Do our best to infer meaning from predicates.  */
-
-inline void
-diagnose_predicate_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  if (TREE_CODE (PRED_CONSTR_EXPR (cur)) == TRAIT_EXPR)
-    diagnose_trait_expression (loc, orig, cur, args);
-  else
-    diagnose_other_expression (loc, orig, cur, args);
-}
-
-/* Diagnose a failed pack expansion, possibly containing constraints.  */
-
-void
-diagnose_pack_expansion (location_t loc, tree, tree cur, tree args)
-{
-  if (constraint_expression_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p())
-    return;
-
-  /* Make sure that we don't have naked packs that we don't expect. */
-  if (!same_type_p (TREE_TYPE (cur), boolean_type_node))
-    {
-      inform (loc, "invalid pack expansion in constraint %qE", cur);
-      return;
-    }
-
-  inform (loc, "in the expansion of %qE", cur);
-
-  /* Get the vector of expanded arguments. Note that n must not
-     be 0 since this constraint is not satisfied.  */
-  ++processing_template_decl;
-  tree exprs = tsubst_pack_expansion (cur, args, tf_none, NULL_TREE);
-  --processing_template_decl;
-  if (exprs == error_mark_node)
-    {
-      /* TODO: This error message could be better. */
-      inform (loc, "    substitution failure occurred during expansion");
-      return;
-    }
-
-  /* Check each expanded constraint separately. */
-  int n = TREE_VEC_LENGTH (exprs);
-  for (int i = 0; i < n; ++i)
-    {
-      tree expr = TREE_VEC_ELT (exprs, i);
-      if (!constraint_expression_satisfied_p (expr, args))
-	inform (loc, "    %qE was not satisfied", expr);
-    }
-}
-
-/* Diagnose a potentially unsatisfied concept check constraint DECL<CARGS>.
-   Parameters are as for diagnose_constraint.  */
-
-void
-diagnose_check_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-
-  tree decl = CHECK_CONSTR_CONCEPT (cur);
-  tree cargs = CHECK_CONSTR_ARGS (cur);
-  tree tmpl = DECL_TI_TEMPLATE (decl);
-  tree check = build_nt (CHECK_CONSTR, decl, cargs);
-
-  /* Instantiate the concept check arguments.  */
-  tree targs = tsubst (cargs, args, tf_none, NULL_TREE);
-  if (targs == error_mark_node)
-    {
-      if (elide_constraint_failure_p ())
-	return;
-      inform (loc, "invalid use of the concept %qE", check);
-      tsubst (cargs, args, tf_warning_or_error, NULL_TREE);
-      return;
-    }
-
-  tree sub = build_tree_list (tmpl, targs);
-  /* Update to the expanded definitions. */
-  cur = expand_concept (decl, targs);
-  if (cur == error_mark_node)
-    {
-      if (elide_constraint_failure_p ())
-	return;
-      inform (loc, "in the expansion of concept %<%E %S%>", check, sub);
-      cur = get_concept_definition (decl);
-      tsubst_expr (cur, targs, tf_warning_or_error, NULL_TREE, false);
-      return;
-    }
-
-  orig = get_concept_definition (CHECK_CONSTR_CONCEPT (orig));
-
-  location_t dloc = DECL_SOURCE_LOCATION (decl);
-  inform (dloc, "within %qS", sub);
-  diagnose_constraint (dloc, orig, cur, targs);
-}
-
-/* Diagnose a potentially unsatisfied conjunction or disjunction.  Parameters
-   are as for diagnose_constraint.  */
-
-void
-diagnose_logical_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  tree t0 = TREE_OPERAND (cur, 0);
-  tree t1 = TREE_OPERAND (cur, 1);
-  if (!constraints_satisfied_p (t0, args))
-    diagnose_constraint (loc, TREE_OPERAND (orig, 0), t0, args);
-  else if (TREE_CODE (orig) == TRUTH_ORIF_EXPR)
-    return;
-  if (!constraints_satisfied_p (t1, args))
-    diagnose_constraint (loc, TREE_OPERAND (orig, 1), t1, args);
-}
-
-/* Diagnose a potential expression constraint failure. */
-
-void
-diagnose_expression_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p())
-    return;
-
-  tree expr = EXPR_CONSTR_EXPR (orig);
-  inform (loc, "the required expression %qE would be ill-formed", expr);
-
-  // TODO: We should have a flag that controls this substitution.
-  // I'm finding it very useful for resolving concept check errors.
-
-  // inform (input_location, "==== BEGIN DUMP ====");
-  // tsubst_expr (EXPR_CONSTR_EXPR (orig), args, tf_warning_or_error, NULL_TREE, false);
-  // inform (input_location, "==== END DUMP ====");
-}
-
-/* Diagnose a potentially failed type constraint. */
-
-void
-diagnose_type_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p())
-    return;
-
-  tree type = TYPE_CONSTR_TYPE (orig);
-  inform (loc, "the required type %qT would be ill-formed", type);
-}
-
-/* Diagnose a potentially unsatisfied conversion constraint. */
-
-void
-diagnose_implicit_conversion_constraint (location_t loc, tree orig, tree cur,
-					 tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-
-  /* The expression and type will previously have been substituted into,
-     and therefore may already be an error. Also, we will have already
-     diagnosed substitution failures into an expression since this must be
-     part of a compound requirement.  */
-  tree expr = ICONV_CONSTR_EXPR (cur);
-  if (error_operand_p (expr))
-    return;
-
-  /* Don't elide a previously diagnosed failure.  */
-  if (elide_constraint_failure_p())
-    return;
-
-  tree type = ICONV_CONSTR_TYPE (cur);
-  if (error_operand_p (type))
-    {
-      inform (loc, "substitution into type %qT failed",
-	      ICONV_CONSTR_TYPE (orig));
-      return;
-    }
-
-  inform(loc, "%qE is not implicitly convertible to %qT", expr, type);
-}
-
-/* Diagnose an argument deduction constraint. */
-
-void
-diagnose_argument_deduction_constraint (location_t loc, tree orig, tree cur,
-					tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-
-  /* The expression and type will previously have been substituted into,
-     and therefore may already be an error. Also, we will have already
-     diagnosed substution failures into an expression since this must be
-     part of a compound requirement.  */
-  tree expr = DEDUCT_CONSTR_EXPR (cur);
-  if (error_operand_p (expr))
-    return;
-
-  /* Don't elide a previously diagnosed failure.  */
-  if (elide_constraint_failure_p ())
-    return;
-
-  tree pattern = DEDUCT_CONSTR_PATTERN (cur);
-  if (error_operand_p (pattern))
-    {
-      inform (loc, "substitution into type %qT failed",
-	      DEDUCT_CONSTR_PATTERN (orig));
-      return;
-    }
-
-  inform (loc, "unable to deduce placeholder type %qT from %qE",
-	  pattern, expr);
-}
-
-/* Diagnose an exception constraint. */
-
-void
-diagnose_exception_constraint (location_t loc, tree orig, tree cur, tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-  if (elide_constraint_failure_p ())
-    return;
-
-  /* Rebuild a noexcept expression. */
-  tree expr = EXCEPT_CONSTR_EXPR (cur);
-  if (error_operand_p (expr))
-    return;
-
-  inform (loc, "%qE evaluated to false", EXCEPT_CONSTR_EXPR (orig));
-}
-
-/* Diagnose a potentially unsatisfied parameterized constraint.  */
-
-void
-diagnose_parameterized_constraint (location_t loc, tree orig, tree cur,
-				   tree args)
-{
-  if (constraints_satisfied_p (cur, args))
-    return;
-
-  local_specialization_stack stack;
-  tree parms = PARM_CONSTR_PARMS (cur);
-  tree vars = tsubst_constraint_variables (parms, args, tf_warning_or_error,
-					   NULL_TREE);
-  if (vars == error_mark_node)
-    {
-      if (elide_constraint_failure_p ())
-	return;
-
-      /* TODO: Check which variable failed and use orig to diagnose
-	 that substitution error.  */
-      inform (loc, "failed to instantiate constraint variables");
-      return;
-    }
-
-  /* TODO: It would be better write these in a list. */
-  while (vars)
-    {
-      inform (loc, "    with %q#D", vars);
-      vars = TREE_CHAIN (vars);
-    }
-  orig = PARM_CONSTR_OPERAND (orig);
-  cur = PARM_CONSTR_OPERAND (cur);
-  return diagnose_constraint (loc, orig, cur, args);
-}
-#endif
 
 static bool diagnose_constraint (tree, tree, tree);
 
@@ -3468,7 +3174,7 @@ diagnose_constraint (tree expr, tree args, tree in_decl)
 /* Diagnose the reason(s) why ARGS do not satisfy the constraints
    of declaration DECL. */
 
-void
+static void
 diagnose_declaration_constraints (location_t loc, tree decl, tree args)
 {
   inform (loc, "constraints not satisfied");
@@ -3484,20 +3190,10 @@ diagnose_declaration_constraints (location_t loc, tree decl, tree args)
   /* Turn off template processing, regardless of context.  */
   processing_template_decl_sentinel proc (true);
 
-  /* Recursively diagnose the associated constraints by noisily 
-     re-running satisfaction on the associated constraints.  
-
-     FIXME: Re-calling satisfy_expression leads to bottom-up
-     ordering of constraints. We get the "leaf" errors before
-     we get any context. Maybe that's helpful if we can get the
-     diagnostic facilities to aggregate errors in particular
-     contexts, but right now, it leads to an "upside-down and
-     redundant interpretation of diagnostics.  */
+  /* Diagnose the failed constraint.  */
   tree expr = CI_ASSOCIATED_CONSTRAINTS (get_constraints (decl));
   diagnose_constraint (expr, args, decl);
 }
-
-} // namespace
 
 /* Emit diagnostics detailing the failure ARGS to satisfy the
    constraints of T. Here, T can be either a constraint
