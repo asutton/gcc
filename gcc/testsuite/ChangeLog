@@ -1,3 +1,9 @@
+2018-08-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Add constrained parameters to template comparisons.
+	* g++.dg/cpp2a/concepts2.C: New overloading tests.
+	* g++.dg/cpp2a/concepts3.C: New overloading tests.
+
 2018-08-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Add constrained parameters to template comparisons.

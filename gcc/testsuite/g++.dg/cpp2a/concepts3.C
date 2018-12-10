@@ -19,7 +19,6 @@ template<typename T>
   requires Class<T>
 void decl1(T);
 
-
 void driver_1() 
 {
   f1(0); // { dg-error "cannot call function" }
