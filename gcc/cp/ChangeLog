@@ -1,5 +1,14 @@
 2018-08-09  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Update the implementation of constrained parameters.
+	* constraint.cc (resolve_concept_check): New.
+	(deduce_constrained_parameter): Check if the identifier or template-id
+	is a concept definition.
+	* parser.c: Rename functions, cleanup formatting.
+	(cp_parser_maybe_concept_name): Handle concept definitions.
+
+2018-08-09  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Handle corner cases in redeclaration rules.
 	* constraint.cc (get_template_head_requirements): New.
 	(get_trailing_function_requirements): New.

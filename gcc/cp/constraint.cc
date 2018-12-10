@@ -239,7 +239,7 @@ contains_wildcard_p (tree args)
 /* Build a new call expression, but don't actually generate a
    new function call. We just want the tree, not the semantics.  */
 
-inline tree
+tree
 build_call_check (tree id)
 {
   ++processing_template_decl;
@@ -424,6 +424,25 @@ resolve_variable_concept_check (tree id)
     return error_mark_node;
 }
 
+/* Returns a pair containing the checked concept and its associated 
+   prototype parameter. The result is a TREE_LIST whose TREE_VALUE 
+   is the concept (non-template) and whose TREE_PURPOSE contains
+   the converted template arguments, including the deduced prototype
+   parameter (in position 0). */
+
+tree
+resolve_concept_check (tree id)
+{
+  tree tmpl = TREE_OPERAND (id, 0);
+  tree args = TREE_OPERAND (id, 1);
+  tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
+  ++processing_template_decl;
+  tree result = coerce_template_parms (parms, args, tmpl);
+  --processing_template_decl;
+  if (result == error_mark_node)
+    return error_mark_node;
+  return build_tree_list (result, DECL_TEMPLATE_RESULT (tmpl));
+}
 
 /* Given a call expression or template-id expression to
   a concept EXPR possibly including a wildcard, deduce
@@ -438,7 +457,12 @@ deduce_constrained_parameter (tree expr, tree& check, tree& proto)
 {
   tree info = NULL_TREE;
   if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
-    info = resolve_variable_concept_check (expr);
+  {
+    if (concept_definition_p (TREE_OPERAND (expr, 0)))
+      info = resolve_concept_check (expr);
+    else
+      info = resolve_variable_concept_check (expr);  	
+  }
   else if (TREE_CODE (expr) == CALL_EXPR)
     info = resolve_constraint_check (expr);
   else
@@ -1126,11 +1150,11 @@ finish_shorthand_constraint (tree decl, tree constr)
   if (apply_to_all_p)
     arg = PACK_EXPANSION_PATTERN (TREE_VEC_ELT (ARGUMENT_PACK_ARGS (arg), 0));
 
-  /* Build the concept check. If it the constraint needs to be
-     applied to all elements of the parameter pack, then make
-     the constraint an expansion. */
+  /* Build the concept constraint-expression.  */
   tree tmpl = DECL_TI_TEMPLATE (con);
-  tree check = VAR_P (con) ? tmpl : ovl_make (tmpl);
+  tree check = tmpl;
+  if (TREE_CODE (con) == FUNCTION_DECL)
+    check = ovl_make (tmpl);
   check = build_concept_check (check, arg, args);
 
   /* Make the check a pack expansion if needed.
@@ -1151,16 +1175,13 @@ finish_shorthand_constraint (tree decl, tree constr)
 tree
 get_shorthand_constraints (tree parms)
 {
-  /* FIXME: Undo this.  */
-  return NULL_TREE;
-
   tree result = NULL_TREE;
   parms = INNERMOST_TEMPLATE_PARMS (parms);
   for (int i = 0; i < TREE_VEC_LENGTH (parms); ++i)
     {
       tree parm = TREE_VEC_ELT (parms, i);
       tree constr = TEMPLATE_PARM_CONSTRAINTS (parm);
-      result = conjoin_constraints (result, constr);
+      result = combine_constraint_expressions (result, constr);
     }
   return result;
 }

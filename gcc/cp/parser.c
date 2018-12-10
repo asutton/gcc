@@ -15665,8 +15665,8 @@ cp_parser_constrained_template_template_parm (cp_parser *parser,
    declarator.  */
 
 static tree
-constrained_non_type_template_parm (bool *is_non_type,
-                                    cp_parameter_declarator *parm)
+cp_parser_constrained_non_type_template_parm (bool *is_non_type,
+					      cp_parameter_declarator *parm)
 {
   *is_non_type = true;
   cp_declarator *decl = parm->declarator;
@@ -15705,7 +15705,7 @@ finish_constrained_parameter (cp_parser *parser,
     parm = cp_parser_constrained_template_template_parm (parser, proto, id,
 							 parmdecl);
   else
-    parm = constrained_non_type_template_parm (is_non_type, parmdecl);
+    parm = cp_parser_constrained_non_type_template_parm (is_non_type, parmdecl);
   if (parm == error_mark_node)
     return error_mark_node;
 
@@ -16793,7 +16793,9 @@ cp_parser_template_argument (cp_parser* parser)
 					  /*ambiguous_decls=*/NULL,
 					  argument_start_token->location);
       /* Handle a constrained-type-specifier for a non-type template
-	 parameter.  */
+	 parameter.  
+
+	 FIXME [concepts]: I don't believe this is allowed in C++20. */
       if (tree decl = cp_parser_maybe_concept_name (parser, argument))
 	argument = decl;
       else if (TREE_CODE (argument) != TEMPLATE_DECL
@@ -17887,7 +17889,7 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
   /* A constrained type specifier can only be found in an
      overload set or as a reference to a template declaration.
 
-     FIXME: This might be masking a bug.  It's possible that
+     FIXME: This might be masking a bug. It's possible that
      that the deduction below is causing template specializations
      to be formed with the wildcard as an argument.  */
   if (TREE_CODE (decl) != OVERLOAD && TREE_CODE (decl) != TEMPLATE_DECL)
@@ -17895,23 +17897,23 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
 
   /* Try to build a call expression that evaluates the
      concept. This can fail if the overload set refers
-     only to non-templates. */
+     only to non-templates.  */
   tree placeholder = build_nt (WILDCARD_DECL);
   tree check = build_concept_check (decl, placeholder, args);
   if (check == error_mark_node)
     return NULL_TREE;
 
-  /* Deduce the checked constraint and the prototype parameter.
-
-     FIXME: In certain cases, failure to deduce should be a
-     diagnosable error.  */
+  /* Deduce the checked constraint and the prototype parameter.  */
   tree conc;
   tree proto;
   if (!deduce_constrained_parameter (check, conc, proto))
     return NULL_TREE;
 
   /* In template parameter scope, this results in a constrained
-     parameter. Return a descriptor of that parm. */
+     parameter. Return a descriptor of that parm.  
+
+     FIXME: In a template parameter list, we require a trailing
+     auto to introduce non-type template parameters.  */
   if (processing_template_parmlist)
     return build_constrained_parameter (conc, proto, args);
 
@@ -17919,6 +17921,8 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
      specifiers result in invented template parameters.  */
   if (parser->auto_is_implicit_function_template_parm_p)
     {
+      /* FIXME: For non-type template arguments, require an
+         extra auto after the constrained parameter.  */
       tree x = build_constrained_parameter (conc, proto, args);
       return synthesize_implicit_template_parm (parser, x);
     }
@@ -17926,7 +17930,9 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
     {
      /* Otherwise, we're in a context where the constrained
         type name is deduced and the constraint applies
-        after deduction. */
+        after deduction.  
+
+        FIXME: Look for an optional auto after the check.  */
       return make_constrained_auto (conc, args);
     }
 
@@ -17945,10 +17951,11 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
 static tree
 cp_parser_maybe_concept_name (cp_parser* parser, tree decl)
 {
-  if (flag_concepts
-      && (TREE_CODE (decl) == OVERLOAD
-	  || BASELINK_P (decl)
-	  || variable_concept_p (decl)))
+  if (flag_concepts &&
+  	(concept_definition_p (decl)
+	 || TREE_CODE (decl) == OVERLOAD
+	 || BASELINK_P (decl)
+	 || variable_concept_p (decl)))
     return cp_parser_maybe_constrained_type_specifier (parser, decl, NULL_TREE);
   else
     return NULL_TREE;
@@ -22157,12 +22164,14 @@ cp_parser_parameter_declaration (cp_parser *parser,
 	  && !LAMBDA_TYPE_P (current_class_type))
 	default_argument = cp_parser_cache_defarg (parser, /*nsdmi=*/false);
 
-      // A constrained-type-specifier may declare a type template-parameter.
+      /* A constrained-type-specifier may declare a type 
+	 template-parameter.  */
       else if (declares_constrained_type_template_parameter (type))
         default_argument
           = cp_parser_default_type_template_argument (parser);
 
-      // A constrained-type-specifier may declare a template-template-parameter.
+      /* A constrained-type-specifier may declare a 
+	 template-template-parameter.  */
       else if (declares_constrained_template_template_parameter (type))
         default_argument
           = cp_parser_default_template_template_argument (parser);
