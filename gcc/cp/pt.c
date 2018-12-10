@@ -3253,6 +3253,126 @@ comp_template_parms (const_tree parms1, const_tree parms2)
   return 1;
 }
 
+/* Returns true when two template parameters are equivalent.  */
+
+static bool
+template_parameters_equivalent_p (const_tree parm1, const_tree parm2)
+{
+  /* If either of the template parameters are invalid, assume
+     they match for the sake of error recovery. */
+  if (error_operand_p (parm1) || error_operand_p (parm2))
+    return true;
+
+  /* ... they declare parameters of the same kind.  */
+  if (TREE_CODE (parm1) != TREE_CODE (parm2))
+    return false;
+
+  /* ... if either declares a pack, they both do.  */
+  if (template_parameter_pack_p (parm1) != template_parameter_pack_p (parm2))
+    return false;
+
+  /* ... if they declare non-type parameters, the types are equivalent.  */
+  if (TREE_CODE (parm1) == PARM_DECL)
+    {
+      if (!same_type_p (TREE_TYPE (parm1), TREE_TYPE (parm2)))
+	return false;
+    }
+  /* ... if they declare template template parameters, their template
+     parameter lists are equivalent.  */
+  else if (TREE_CODE (parm2) == TEMPLATE_DECL)
+    {
+      if (!template_heads_equivalent_p (parm1, parm2))
+      	return false;
+    }
+
+  /* ... if they are declared with a qualified-concept name, they both
+      are, and those names are equivalent.  */
+  // FIXME: Implement this!
+
+  return true;
+}
+
+/* Returns true if two template parameters lists are equivalent.
+   Two template parameter lists are equivalent if they have the
+   same length and their corresponding parameters are equivalent.
+
+   PARMS1 and PARMS2 are TREE_LISTs containing TREE_VECs: the
+   data structure returned by DECL_TEMPLATE_PARMS.
+
+   This is generally the same implementation as comp_template_parms 
+   except that it also the concept names and arguments used to 
+   introduce parameters.  */
+
+static bool
+template_parameter_lists_equivalent_p (const_tree parms1, const_tree parms2)
+{
+  if (parms1 == parms2)
+    return true;
+
+  const_tree p1 = parms1;
+  const_tree p2 = parms2;
+  while (p1 != NULL_TREE && p2 != NULL_TREE)
+    {
+      tree list1 = TREE_VALUE (p1);
+      tree list2 = TREE_VALUE (p2);
+      
+      if (TREE_VEC_LENGTH (list1) != TREE_VEC_LENGTH (list2))
+	return 0;
+
+      for (int i = 0; i < TREE_VEC_LENGTH (list2); ++i)
+	{
+	  tree parm1 = TREE_VALUE (TREE_VEC_ELT (list1, i));
+	  tree parm2 = TREE_VALUE (TREE_VEC_ELT (list2, i));
+
+	  if (!template_parameters_equivalent_p (parm1, parm2))
+	    return false;
+	}
+       
+      p1 = TREE_CHAIN (p1);
+      p2 = TREE_CHAIN (p2);
+    }
+
+  if ((p1 != NULL_TREE) != (p2 != NULL_TREE))
+    return false;
+
+  return true;
+}
+
+/* Returns true if two template heads are equivalent.  17.6.6.1p6:
+   Two template heads are equivalent if their template parameter
+   lists are equivalent and their requires clauses are equivalent.  */
+
+bool
+template_heads_equivalent_p (const_tree tmpl1, const_tree tmpl2)
+{
+  tree parms1 = DECL_TEMPLATE_PARMS (tmpl1);
+  tree parms2 = DECL_TEMPLATE_PARMS (tmpl2);
+
+  /* Don't change the matching rules for pre-C++20.  */
+  if (cxx_dialect < cxx2a)
+    {
+      if (!comp_template_parms (parms1, parms2))
+      	return false;
+      return true;
+    }
+
+  /* ... have the same number of template parameters, and their
+     corresponding parameters are equivalent.  */
+  if (!template_parameter_lists_equivalent_p (parms1, parms2))
+    return false;
+
+  /* ... if either has a requires-clause, they both do and their
+     corresponding constraint-expressions are equivalent.  */
+  tree req1 = TEMPLATE_PARMS_CONSTRAINTS (parms1);
+  tree req2 = TEMPLATE_PARMS_CONSTRAINTS (parms2);
+  if ((req1 != NULL_TREE) != (req2 != NULL_TREE))
+    return false;
+  if (!cp_tree_equal (req1, req2))
+    return false;
+
+  return true;
+}
+
 /* Determine whether PARM is a parameter pack.  */
 
 bool 

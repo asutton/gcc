@@ -921,6 +921,46 @@ determine_local_discriminator (tree decl)
 }
 
 
+/* Check that a programmer hasn't tried to redeclare a function by
+   moving template requirements into the declarator. For example:
+
+	template<typename T> requires C<T> void f(T);
+	template<typename T> void f(T) requires C<T>;
+
+   The declarations are functionally equivalent but not equivalent,
+   so the program is ill-formed, no diagnostic required. In this
+   case, we can provide the diagnostic.  
+
+   Here, FN1 has constraints in its declarator; FN2 may have
+   constraints in its template head.  Returns false. */
+static bool
+check_misplaced_requirement (tree fn1, tree fn2)
+{
+  debug_tree (fn1);
+  debug_tree (fn2);
+
+  return false;
+}
+
+
+/* Returns true if functions FN1 and FN2 have equivalent trailing
+   requires clauses.  */
+
+static bool
+function_requirements_equivalent_p (tree newfn, tree oldfn)
+{
+  tree ci1 = get_constraints (newfn);
+  tree ci2 = get_constraints (oldfn);
+  if (!ci1)
+    return !ci2;
+  if (!ci2)
+    return false;
+
+  tree reqs1 = CI_DECLARATOR_REQS (ci1);
+  tree reqs2 = CI_DECLARATOR_REQS (ci2);
+  return cp_tree_equal (reqs1, reqs2);
+}
+
 /* Subroutine of duplicate_decls: return truthvalue of whether
    or not types of these decls match.
 
@@ -1000,6 +1040,12 @@ decls_match (tree newdecl, tree olddecl, bool record_versions /* = true */)
       else
 	types_match = 0;
 
+      /* Two function declarations match if either has a requires-clause
+         then both have a requires-clause and their constraints-expressions
+         are equivalent.  */
+      if (types_match && flag_concepts)
+      	types_match = function_requirements_equivalent_p (newdecl, olddecl);
+
       /* The decls dont match if they correspond to two different versions
 	 of the same function.   Disallow extern "C" functions to be
 	 versions for now.  */
@@ -1014,23 +1060,21 @@ decls_match (tree newdecl, tree olddecl, bool record_versions /* = true */)
     }
   else if (TREE_CODE (newdecl) == TEMPLATE_DECL)
     {
+      if (!template_heads_equivalent_p (olddecl, newdecl))
+      	return 0;
+
       tree oldres = DECL_TEMPLATE_RESULT (olddecl);
       tree newres = DECL_TEMPLATE_RESULT (newdecl);
 
       if (TREE_CODE (newres) != TREE_CODE (oldres))
 	return 0;
 
-      if (!comp_template_parms (DECL_TEMPLATE_PARMS (newdecl),
-				DECL_TEMPLATE_PARMS (olddecl)))
-	return 0;
-
-      if (TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) == TYPE_DECL)
-	types_match = (same_type_p (TREE_TYPE (oldres), TREE_TYPE (newres))
-		       && equivalently_constrained (olddecl, newdecl));
+      /* Two template types match if they are the same. Otherwise, compare
+         the underlying declarations.  */
+      if (TREE_CODE (newres) == TYPE_DECL)
+        types_match = same_type_p (TREE_TYPE (newres), TREE_TYPE (oldres));
       else
-	// We don't need to check equivalently_constrained for variable and
-	// function templates because we check it on the results.
-	types_match = decls_match (oldres, newres);
+	types_match = decls_match (newres, oldres);
     }
   else
     {
@@ -1057,11 +1101,6 @@ decls_match (tree newdecl, tree olddecl, bool record_versions /* = true */)
 				 TREE_TYPE (olddecl),
 				 COMPARE_REDECLARATION);
     }
-
-  // Normal functions can be constrained, as can variable partial
-  // specializations.
-  if (types_match && VAR_OR_FUNCTION_DECL_P (newdecl))
-    types_match = equivalently_constrained (newdecl, olddecl);
 
   return types_match;
 }

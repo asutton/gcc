@@ -1,3 +1,19 @@
+2018-08-01  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Implement new template equivalence rules.
+	* cp-tree.h (template_heads_equivalent_p): New.
+	* decl.c (check_misplaced_requirement): New. Placeholder for a 
+	diagnostic.
+	(function_requirements_equivalent_p): New. Compare trailing
+	requires clauses.
+	(decls_match): Compare trailing requires clauses. Compare template
+	heads for function templates. Remove old constraint comparison.
+	* pt.c (template_parameters_equivalent_p): New. Compare template
+	parameters.
+	(template_parameter_lists_equivalent_p): New. Compare template
+	parameter lists.
+	(template_heads_equivalent_p): New. Compare template heads.
+
 2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Instantiation fixes during constraint diagnostics.

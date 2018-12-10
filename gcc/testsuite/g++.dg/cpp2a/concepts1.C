@@ -95,7 +95,7 @@ struct S2 : S1 {
   void g() { }
 };
 
-int driver_2()
+void driver_2()
 {
   S1 x;
   S2 y;
@@ -103,4 +103,13 @@ int driver_2()
   static_assert(algo(y) == 2);
   ambig(x); // { dg-error "call of overload | is ambiguous" }
 }
+
+// Redeclaration
+
+template<typename T>
+  requires true
+void f3();
+
+template<typename T>
+void f3() requires true; // { dg-error "ambiguating new declaration" }
 

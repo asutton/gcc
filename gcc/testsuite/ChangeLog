@@ -1,3 +1,8 @@
+2018-08-01  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Implement new template equivalence rules.
+	* g++.dg/cpp2a/concepts1.C: Add equivalence tests.
+
 2018-07-30  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Import tests from concepts TS tests.
