@@ -1,5 +1,11 @@
 2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Add tests for constrained aliases.
+	* g++.dg/cpp2a/concepts-class.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts-alias.C: New.
+
+2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix partial specialization issues.
 	* g++.dg/cpp2a/concepts-class.C: New test.
 

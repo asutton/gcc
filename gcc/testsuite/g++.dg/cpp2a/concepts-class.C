@@ -24,7 +24,8 @@ template<typename T>
 struct err { }; // { dg-error "never satisfied" }
 
 ok<int> ok1;
-err<int> err1; // { dg-error "invalid class name" }
+err<int> err1; // { dg-error "invalid use of class template" }
+err<int>* err2; // { dg-error "invalid use of class template" }
 
 // Redeclarations
 template<typename T> 
