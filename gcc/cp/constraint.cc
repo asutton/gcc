@@ -2656,7 +2656,6 @@ satisfy_constraint (tree t, tree args)
   if (args == NULL_TREE)
     args = make_tree_vec (1);
 
-  // return satisfy_constraint_1 (t, args, tf_none, NULL_TREE);
   subst_info info {tf_none, NULL_TREE};
   return cxx_satisfy_expression (t, args, info);
 }
@@ -2707,10 +2706,8 @@ evaluate_constraints (tree constr, tree args)
 tree
 evaluate_concept (tree c, tree args)
 {
-  if (TREE_CODE (c) == TEMPLATE_DECL)
-    c = DECL_TEMPLATE_RESULT (c);
-  tree constr = build_nt (CHECK_CONSTR, c, args);
-  return satisfy_constraint (constr, args);
+  tree t = build_nt (TEMPLATE_ID_EXPR, c, args);
+  return satisfy_constraint (t, NULL_TREE);
 }
 
 /* Evaluate the function concept FN by substituting its own args
@@ -2745,6 +2742,14 @@ tree
 evaluate_constraint_expression (tree expr, tree args)
 {
   return satisfy_constraint (expr, args);
+}
+
+/* Evaluate EXPR as a constraint.  */
+
+tree
+evaluate_constraint_expression (tree expr)
+{
+  return satisfy_constraint (expr, NULL_TREE);
 }
 
 /* Returns true if the DECL's constraints are satisfied.

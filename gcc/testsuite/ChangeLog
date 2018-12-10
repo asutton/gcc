@@ -1,5 +1,10 @@
 2018-07-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Don't normalize constraints in constexpr evaluation.
+	* g++.dg/cpp2a/concepts1.C: Renamed from concepts.C.
+
+2018-07-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Always make 'concept bool' a warning.
 	* g++.dg/cpp2a/concepts.C: Update diagnostics.
 

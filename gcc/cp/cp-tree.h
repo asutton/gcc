@@ -7654,6 +7654,7 @@ extern tree evaluate_concept                    (tree, tree);
 extern tree evaluate_function_concept           (tree, tree);
 extern tree evaluate_variable_concept           (tree, tree);
 extern tree evaluate_constraint_expression      (tree, tree);
+extern tree evaluate_constraint_expression      (tree);
 extern bool constraints_satisfied_p             (tree);
 extern bool constraints_satisfied_p             (tree, tree);
 extern tree lookup_constraint_satisfaction      (tree, tree);

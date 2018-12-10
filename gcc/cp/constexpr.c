@@ -4910,16 +4910,11 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
     case TEMPLATE_ID_EXPR:
       {
         /* We can evaluate template-id that refers to a concept only if
-           the template arguments are non-dependent.  */
-        tree tmpl = TREE_OPERAND (t, 0);
-        if (concept_definition_p (tmpl)) 
-          {
-            tree args = TREE_OPERAND (t, 1);
-            gcc_assert (!any_dependent_template_arguments_p (args));
-            r = evaluate_concept (tmpl, args);
-            break;
-          }
-        internal_error ("unexpected template_id_expr %qE", t);
+	   the template arguments are non-dependent.  */
+	if (!concept_definition_p (TREE_OPERAND (t, 0)))
+	  internal_error ("unexpected template_id_expr %qE", t);
+	
+	r = evaluate_constraint_expression (t);
         break;
       }
 
