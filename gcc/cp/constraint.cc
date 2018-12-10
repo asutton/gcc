@@ -992,6 +992,30 @@ build_constraints (tree treqs, tree dreqs)
   return (tree)ci;
 }
 
+/* Returns the template-head requires clause for the template 
+   declaration T or NULL_TREE if none.  */
+
+tree
+get_template_head_requirements (tree t)
+{
+  tree ci = get_constraints (t);
+  if (!ci)
+    return NULL_TREE;
+  return CI_TEMPLATE_REQS (ci);
+}
+
+/* Returns the trailing requires clause of the declarator of
+   a template declaration T or NULL_TREE if none.  */
+
+tree
+get_trailing_function_requirements (tree t)
+{
+  tree ci = get_constraints (t);
+  if (!ci)
+    return NULL_TREE;
+  return CI_DECLARATOR_REQS (ci);
+}
+
 namespace {
 
 /* Construct a sequence of template arguments by prepending

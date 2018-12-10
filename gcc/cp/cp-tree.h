@@ -7637,6 +7637,8 @@ extern void remove_constraints                  (tree);
 extern tree current_template_constraints	(void);
 extern tree associate_classtype_constraints     (tree);
 extern tree build_constraints                   (tree, tree);
+extern tree get_template_head_requirements	(tree);
+extern tree get_trailing_function_requirements	(tree);
 extern tree get_shorthand_constraints           (tree);
 extern tree build_concept_check                 (tree, tree, tree = NULL_TREE);
 extern tree build_constrained_parameter         (tree, tree, tree = NULL_TREE);

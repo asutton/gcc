@@ -3271,22 +3271,22 @@ template_parameters_equivalent_p (const_tree parm1, const_tree parm2)
   if (template_parameter_pack_p (parm1) != template_parameter_pack_p (parm2))
     return false;
 
-  /* ... if they declare non-type parameters, the types are equivalent.  */
   if (TREE_CODE (parm1) == PARM_DECL)
     {
+      /* ... if they declare non-type parameters, the types are equivalent.  */
       if (!same_type_p (TREE_TYPE (parm1), TREE_TYPE (parm2)))
 	return false;
     }
-  /* ... if they declare template template parameters, their template
-     parameter lists are equivalent.  */
   else if (TREE_CODE (parm2) == TEMPLATE_DECL)
     {
+      /* ... if they declare template template parameters, their template
+	 parameter lists are equivalent.  */
       if (!template_heads_equivalent_p (parm1, parm2))
-      	return false;
+	return false;
     }
 
   /* ... if they are declared with a qualified-concept name, they both
-      are, and those names are equivalent.  */
+     are, and those names are equivalent.  */
   // FIXME: Implement this!
 
   return true;
@@ -3338,9 +3338,12 @@ template_parameter_lists_equivalent_p (const_tree parms1, const_tree parms2)
   return true;
 }
 
-/* Returns true if two template heads are equivalent.  17.6.6.1p6:
+/* Returns true if two template heads are equivalent. 17.6.6.1p6:
    Two template heads are equivalent if their template parameter
-   lists are equivalent and their requires clauses are equivalent.  */
+   lists are equivalent and their requires clauses are equivalent.  
+
+   In pre-C++20, this is equivalent to calling comp_template_parms
+   for the template parameters of TMPL1 and TMPL2.  */
 
 bool
 template_heads_equivalent_p (const_tree tmpl1, const_tree tmpl2)
@@ -3350,11 +3353,7 @@ template_heads_equivalent_p (const_tree tmpl1, const_tree tmpl2)
 
   /* Don't change the matching rules for pre-C++20.  */
   if (cxx_dialect < cxx2a)
-    {
-      if (!comp_template_parms (parms1, parms2))
-      	return false;
-      return true;
-    }
+    return comp_template_parms (parms1, parms2);
 
   /* ... have the same number of template parameters, and their
      corresponding parameters are equivalent.  */

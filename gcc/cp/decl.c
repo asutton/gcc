@@ -921,43 +921,16 @@ determine_local_discriminator (tree decl)
 }
 
 
-/* Check that a programmer hasn't tried to redeclare a function by
-   moving template requirements into the declarator. For example:
-
-	template<typename T> requires C<T> void f(T);
-	template<typename T> void f(T) requires C<T>;
-
-   The declarations are functionally equivalent but not equivalent,
-   so the program is ill-formed, no diagnostic required. In this
-   case, we can provide the diagnostic.  
-
-   Here, FN1 has constraints in its declarator; FN2 may have
-   constraints in its template head.  Returns false. */
-static bool
-check_misplaced_requirement (tree fn1, tree fn2)
-{
-  debug_tree (fn1);
-  debug_tree (fn2);
-
-  return false;
-}
-
-
 /* Returns true if functions FN1 and FN2 have equivalent trailing
    requires clauses.  */
 
 static bool
 function_requirements_equivalent_p (tree newfn, tree oldfn)
 {
-  tree ci1 = get_constraints (newfn);
-  tree ci2 = get_constraints (oldfn);
-  if (!ci1)
-    return !ci2;
-  if (!ci2)
+  tree reqs1 = get_trailing_function_requirements (newfn);
+  tree reqs2 = get_trailing_function_requirements (oldfn);
+  if ((reqs1 != NULL_TREE) != (reqs2 != NULL_TREE))
     return false;
-
-  tree reqs1 = CI_DECLARATOR_REQS (ci1);
-  tree reqs2 = CI_DECLARATOR_REQS (ci2);
   return cp_tree_equal (reqs1, reqs2);
 }
 
@@ -1376,6 +1349,46 @@ merge_attribute_bits (tree newdecl, tree olddecl)
 			  && lookup_attribute ("gnu_inline",		\
 					       DECL_ATTRIBUTES (fn)))
 
+/* A subroutine of duplicate_decls. Emits a diagnostic when newdecl
+   ambiguates olddecl.  Returns true if an error occurs.  */
+
+static bool
+duplicate_function_template_decls (tree newdecl, tree olddecl)
+{
+
+  tree newres = DECL_TEMPLATE_RESULT (newdecl);
+  tree oldres = DECL_TEMPLATE_RESULT (olddecl);
+  /* Function template declarations can be differentiated by parameter
+     and return type.  */
+  if (compparms (TYPE_ARG_TYPES (TREE_TYPE (oldres)),
+		 TYPE_ARG_TYPES (TREE_TYPE (newres)))
+       && same_type_p (TREE_TYPE (TREE_TYPE (newdecl)),
+		       TREE_TYPE (TREE_TYPE (olddecl))))
+    {
+      /* ... and also by their template-heads and requires-clauses.  */
+      if (template_heads_equivalent_p (newdecl, olddecl)
+	  && function_requirements_equivalent_p (newres, oldres))
+	{
+	  error ("ambiguating new declaration %q+#D", newdecl);
+	  inform (DECL_SOURCE_LOCATION (olddecl),
+		  "old declaration %q#D", olddecl);
+	  return true;
+	}
+      
+      /* FIXME: The types are the same but the are differences
+	 in either the template heads or function requirements.
+	 We should be able to diagnose a set of common errors
+	 stemming from these declarations. For example:
+
+	   template<typename T> requires C void f(...);
+	   template<typename T> void f(...) requires C;
+
+	 These are functionally equivalent but not equivalent.  */
+    }
+
+  return false;
+}
+
 /* If NEWDECL is a redeclaration of OLDDECL, merge the declarations.
    If the redeclaration is invalid, a diagnostic is issued, and the
    error_mark_node is returned.  Otherwise, OLDDECL is returned.
@@ -1684,11 +1697,14 @@ next_arg:;
 
       if (TREE_CODE (newdecl) == TEMPLATE_DECL)
 	{
+	  tree oldres = DECL_TEMPLATE_RESULT (olddecl);
+	  tree newres = DECL_TEMPLATE_RESULT (newdecl);
+
 	  /* The name of a class template may not be declared to refer to
 	     any other template, class, function, object, namespace, value,
 	     or type in the same scope.  */
-	  if (TREE_CODE (DECL_TEMPLATE_RESULT (olddecl)) == TYPE_DECL
-	      || TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) == TYPE_DECL)
+	  if (TREE_CODE (oldres) == TYPE_DECL
+	      || TREE_CODE (newres) == TYPE_DECL)
 	    {
 	      error_at (newdecl_loc,
 			"conflicting declaration of template %q#D", newdecl);
@@ -1696,24 +1712,13 @@ next_arg:;
 		      "previous declaration %q#D", olddecl);
 	      return error_mark_node;
 	    }
-	  else if (TREE_CODE (DECL_TEMPLATE_RESULT (olddecl)) == FUNCTION_DECL
-		   && TREE_CODE (DECL_TEMPLATE_RESULT (newdecl)) == FUNCTION_DECL
-		   && compparms (TYPE_ARG_TYPES (TREE_TYPE (DECL_TEMPLATE_RESULT (olddecl))),
-				 TYPE_ARG_TYPES (TREE_TYPE (DECL_TEMPLATE_RESULT (newdecl))))
-		   && comp_template_parms (DECL_TEMPLATE_PARMS (newdecl),
-					   DECL_TEMPLATE_PARMS (olddecl))
-		   /* Template functions can be disambiguated by
-		      return type.  */
-		   && same_type_p (TREE_TYPE (TREE_TYPE (newdecl)),
-				   TREE_TYPE (TREE_TYPE (olddecl)))
-                   /* Template functions can also be disambiguated by
-		      constraints.  */
-                   && equivalently_constrained (olddecl, newdecl))
+
+	  else if (TREE_CODE (oldres) == FUNCTION_DECL
+		   && TREE_CODE (newres) == FUNCTION_DECL)
 	    {
-	      error_at (newdecl_loc, "ambiguating new declaration %q#D",
-			newdecl);
-	      inform (olddecl_loc,
-		      "old declaration %q#D", olddecl);
+	      if (duplicate_function_template_decls (newdecl, olddecl))
+		return error_mark_node;
+	      return NULL_TREE;
 	    }
           else if (check_concept_refinement (olddecl, newdecl))
 	    return error_mark_node;

@@ -1,3 +1,8 @@
+2018-08-09  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Handle corner cases in redeclaration rules.
+	* g++.dg/cpp2a/concepts1.C: Add redefinition/overloading tests.
+
 2018-08-01  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Implement new template equivalence rules.

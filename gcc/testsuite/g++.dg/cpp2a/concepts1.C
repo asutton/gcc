@@ -106,10 +106,23 @@ void driver_2()
 
 // Redeclaration
 
-template<typename T>
-  requires true
-void f3();
+template<typename T> concept C = true;
 
-template<typename T>
-void f3() requires true; // { dg-error "ambiguating new declaration" }
+// FIXME: This should be a diagnosable error. The programmer has moved
+// the requirements from the template-head to the declarator.
+template<typename T> requires C<T> void f3();
+template<typename T> void f3() requires C<T>;
+
+void driver_3()
+{
+  f3<int>(); // { dg-error "call of overload | ambiguous" }
+}
+
+template<template<typename T> requires true class X> void f4();
+template<template<typename T> class X> void f4(); // OK: different declarations
+
+template<typename T> requires C4<T> void def() { }
+template<typename T> requires C4<T> void def() { } // { dg-error "redefinition" }
+
+
 

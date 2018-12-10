@@ -1,3 +1,20 @@
+2018-08-09  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Handle corner cases in redeclaration rules.
+	* constraint.cc (get_template_head_requirements): New.
+	(get_trailing_function_requirements): New.
+	* cp-tree.h (get_template_head_requirements): New.
+	(get_trailing_function_requirements): New.
+	* decl.c (check_misplaced_requirement): Delete.
+	(function_requirements_equivalent_p): Compare only trailing requires
+	clauses.
+	(duplicate_function_template_decls): New. Refactor a nasty if
+	condition into a single predicate.
+	(decls_match): Simplify comparison of functions, function templates.
+	(template_parameters_equivalent_p): Handle template template
+	parameters.
+	(template_heads_equivalent_p): For pre-C++2a, just compare parameters.
+
 2018-08-01  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Implement new template equivalence rules.
