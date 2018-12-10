@@ -50,20 +50,3 @@ template<typename T, T X> requires X struct S4 { }; // OK
 S4<int, 0> x1;      // { dg-error "invalid use of class template|does not have type" }
 S4<bool, true> x2; // OK
 S4<bool, false> x3; // { dg-error "invalid use of class template" }
-
-struct fool {
-  constexpr fool operator&&(fool) const { return {}; }
-  constexpr fool operator||(fool) const { return {}; }
-};
-
-template<typename T> constexpr fool p1() { return {}; }
-template<typename T> constexpr fool p2() { return {}; }
-
-template<typename T>
-concept Bad = p1<T>() && p2<T>();
-
-template<typename T> requires Bad<T> void bad(T x) { }
-
-int main() {
-  bad(0); // { dg-error "cannot call" }
-}

@@ -1,5 +1,13 @@
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Rearrange requirements tests.
+	* g++.dg/cpp2a/concepts-requires.C: Deleted.
+	* g++.dg/cpp2a/concepts-requires1.C: New.
+	* g++.dg/cpp2a/concepts-requires2.C: New.
+	* g++.dg/cpp2a/concepts-requires3.C: New.
+
+2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Add tests for non-bool atoms.
 	* g++.dg/cpp2a/concepts-requires.C: New tests.
 
