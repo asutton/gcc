@@ -7695,6 +7695,7 @@ extern bool equivalent_constraints              (tree, tree);
 extern bool equivalently_constrained            (tree, tree);
 extern bool subsumes_constraints                (tree, tree);
 extern bool strictly_subsumes			(tree, tree, tree);
+extern bool weakly_subsumes			(tree, tree, tree);
 extern int more_constrained                     (tree, tree);
 
 extern void diagnose_constraints                (location_t, tree, tree);

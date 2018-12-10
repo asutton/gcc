@@ -7870,26 +7870,25 @@ is_compatible_template_arg (tree parm, tree arg)
   if (parm_cons == NULL_TREE)
     return true;
 
-  tree arg_cons = get_constraints (arg);
-
-  // If the template parameter is constrained, we need to rewrite its
-  // constraints in terms of the ARG's template parameters. This ensures
-  // that all of the template parameter types will have the same depth.
-  //
-  // Note that this is only valid when coerce_template_template_parm is
-  // true for the innermost template parameters of PARM and ARG. In other
-  // words, because coercion is successful, this conversion will be valid.
+  /* If the template parameter is constrained, we need to rewrite its
+     constraints in terms of the ARG's template parameters. This ensures
+     that all of the template parameter types will have the same depth.
+    
+     Note that this is only valid when coerce_template_template_parm is
+     true for the innermost template parameters of PARM and ARG. In other
+     words, because coercion is successful, this conversion will be valid.  */
+  tree new_args = NULL_TREE;
   if (parm_cons)
     {
-      tree args = template_parms_to_args (DECL_TEMPLATE_PARMS (arg));
+      new_args = template_parms_to_args (DECL_TEMPLATE_PARMS (arg));
       parm_cons = tsubst_constraint_info (parm_cons,
-					  INNERMOST_TEMPLATE_ARGS (args),
+					  INNERMOST_TEMPLATE_ARGS (new_args),
 					  tf_none, NULL_TREE);
       if (parm_cons == error_mark_node)
 	return false;
     }
 
-  return subsumes (parm_cons, arg_cons);
+  return weakly_subsumes (parm_cons, new_args, arg);
 }
 
 // Convert a placeholder argument into a binding to the original
@@ -16211,7 +16210,6 @@ tsubst_copy (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
     default:
       /* We shouldn't get here, but keep going if !flag_checking.  */
-      debug_tree (t);
       if (flag_checking)
 	gcc_unreachable ();
       return t;
@@ -23122,15 +23120,7 @@ more_specialized_fn (tree pat1, tree pat2, int len)
       if (winner > 0)
 	lose2 = true;
       else if (winner < 0)
-	lose1 = true;
-      
-      /*
-      lose2 += winner;
-      tree c1 = get_constraints (DECL_TEMPLATE_RESULT (pat1));
-      tree c2 = get_constraints (DECL_TEMPLATE_RESULT (pat2));
-      lose1 = !subsumes_constraints (c1, c2);
-      lose2 = !subsumes_constraints (c2, c1);
-      */
+      	lose1 = true;
     }
 
   /* All things being equal, if the next argument is a pack expansion

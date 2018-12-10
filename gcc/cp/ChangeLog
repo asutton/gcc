@@ -1,5 +1,18 @@
 2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Fix for pr84551.
+	* constraint.cc (build_constraints): Combine expressions, not 
+	constraints.
+	(tsubst_constraint_info): Substitute through template and declaration
+	constraints as expressions.
+	(weakly_subsumes): New.
+	* cp-tree.h (weakly_subsumes): New.
+	* logic.cc (contains): Code cleanup.
+	* pt.c (is_compatible_template_arg): Use weakly_subsumes.
+	(more_specialized_fn): Code cleanup.
+
+2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix partial specialization issues.
 	* constraint.cc (get_normalized_constraints_from_info): New.
 	(get_normalized_constraints_from_decl): New.

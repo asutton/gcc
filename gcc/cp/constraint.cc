@@ -994,15 +994,15 @@ build_constraint_info ()
    this returns NULL_TREE, indicating an unconstrained declaration.  */
 
 tree
-build_constraints (tree treqs, tree dreqs)
+build_constraints (tree tr, tree dr)
 {
-  if (!treqs && !dreqs)
+  if (!tr && !dr)
     return NULL_TREE;
 
   tree_constraint_info* ci = build_constraint_info ();
-  ci->template_reqs = treqs;
-  ci->declarator_reqs = dreqs;
-  ci->associated_constr = combine_constraint_expressions (treqs, dreqs);
+  ci->template_reqs = tr;
+  ci->declarator_reqs = dr;
+  ci->associated_constr = combine_constraint_expressions (tr, dr);
 
   return (tree)ci;
 }
@@ -1836,7 +1836,7 @@ tsubst_requires_expr (tree t, tree args,
 }
 
 /* Substitute ARGS into the constraint information CI, producing a new
-   constraint record. */
+   constraint record.  */
 
 tree
 tsubst_constraint_info (tree t, tree args,
@@ -1845,15 +1845,9 @@ tsubst_constraint_info (tree t, tree args,
   if (!t || t == error_mark_node || !check_constraint_info (t))
     return NULL_TREE;
 
-  tree tmpl_constr = NULL_TREE;
-  if (tree r = CI_TEMPLATE_REQS (t))
-    tmpl_constr = tsubst_constraint (r, args, complain, in_decl);
-
-  tree decl_constr = NULL_TREE;
-  if (tree r = CI_DECLARATOR_REQS (t))
-    decl_constr = tsubst_constraint (r, args, complain, in_decl);
-
-  return build_constraints (tmpl_constr, decl_constr);
+  tree tr = tsubst_expr (CI_TEMPLATE_REQS (t), args, complain, in_decl, true);
+  tree dr = tsubst_expr (CI_DECLARATOR_REQS (t), args, complain, in_decl, true);
+  return build_constraints (tr, dr);
 }
 
 /* Substitute ARGS into the constraint T. */
@@ -2762,8 +2756,8 @@ get_normalized_constraints_from_decl (tree d)
   return get_normalized_constraints_from_info (ci, args, tmpl);
 }
 
-/* Returns true when the the constraints in CI (with initial arguments 
-   ARGS) strictly subsume those associated constraints of TMPL.  */
+/* Returns true when the the constraints in CI (with arguments 
+   ARGS) strictly subsume the associated constraints of TMPL.  */
 
 bool
 strictly_subsumes (tree ci, tree args, tree tmpl)
@@ -2772,6 +2766,18 @@ strictly_subsumes (tree ci, tree args, tree tmpl)
   tree n2 = get_normalized_constraints_from_decl (tmpl);
 
   return subsumes (n1, n2) && !subsumes (n2, n1);
+}
+
+/* REturns true when the constraints in CI (with arguments ARGS) subsume
+   the associated constraints of TMPL.  */
+
+bool
+weakly_subsumes (tree ci, tree args, tree tmpl)
+{
+  tree n1 = get_normalized_constraints_from_info (ci, args, NULL_TREE);
+  tree n2 = get_normalized_constraints_from_decl (tmpl);
+
+  return subsumes (n1, n2);
 }
 
 /* Determines which of the declarations, A or B, is more constrained.
