@@ -1880,14 +1880,27 @@ tsubst_type_requirement (tree t, tree args,
   return finish_type_requirement (type);
 }
 
-/* True if TYPE can be deduced from EXPR.  
+/* True if TYPE can be deduced from EXPR.
+
+   FIXME: This doesn't appear to support generalized auto.
 
    FIXME: Perform decltype deduction, not template argument deduction.  */
 
 static bool
-type_deducible_p (tree expr, tree type)
+type_deducible_p (tree expr, tree type, tree placeholder, tree args, 
+                  tsubst_flags_t complain, tree in_decl)
 {
-  /* FIXME: perform argument deduction.  */
+  tree constr = PLACEHOLDER_TYPE_CONSTRAINTS (placeholder);
+  tree type_canonical = TYPE_CANONICAL (placeholder);
+  PLACEHOLDER_TYPE_CONSTRAINTS (placeholder)
+    = tsubst_constraint (constr, args, complain | tf_partial, in_decl);
+  TYPE_CANONICAL (placeholder) = NULL_TREE;
+  tree deduced_type = do_auto_deduction (type, expr, placeholder,
+                                         complain, adc_requirement);
+  PLACEHOLDER_TYPE_CONSTRAINTS (placeholder) = constr;
+  TYPE_CANONICAL (placeholder) = type_canonical;
+  if (deduced_type == error_mark_node)
+    return false;
   return true;
 }
 
@@ -1896,20 +1909,19 @@ type_deducible_p (tree expr, tree type)
 static bool 
 expression_convertible_t (tree expr, tree type, tsubst_flags_t complain)
 {
-  /* FIXME: For some reason, the conversion was calling the
-     function below, but that doesn't correctly diagnose errors
-     for non-class types.  Maybe that's not a problem if we
-     build our diagnostics more carefully.  */
-  tree conv = perform_implicit_conversion (type, expr, complain);
-  if (conv == error_mark_node)
-    return false;
-
-#if 0 
   tree conv =
     perform_direct_initialization_if_possible (type, expr, false, complain);
-  if (conv == NULL_TREE || conv == error_mark_node)
+  if (conv == error_mark_node)
     return false;
-#endif
+  if (conv == NULL_TREE)
+    {
+      if (complain & tf_error)
+        {
+          location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
+          error_at (loc, "cannot convert %qE to %qT", expr, type);
+        }
+      return false;
+    }
   return true;
 }
 
@@ -1934,8 +1946,11 @@ tsubst_compound_requirement (tree t, tree args,
   bool noexcept_p = COMPOUND_REQ_NOEXCEPT_P (t);
 
   /* Check expression against the result type.  */
-  if (type_uses_auto (type) && !type_deducible_p (expr, type))
-    return error_mark_node;
+  if (tree placeholder = type_uses_auto (type))
+    {
+      if (!type_deducible_p (expr, type, placeholder, args, complain, in_decl))
+	return error_mark_node;
+    }
   else if (!expression_convertible_t (expr, type, complain)) 
     return error_mark_node;
   

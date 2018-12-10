@@ -1,3 +1,12 @@
+2018-07-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Initial experimental rewrite of satisfaction.
+	* constraint.cc (type_deducible_p): Re-apply type deduction logic.
+	(expression_convertible_t): Use direct initialization. Diagnose
+	errors on failure.
+	(tsubst_compound_requirement): Distinguish between conversion and
+	deduction constraints.
+
 2018-07-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Initial experimental rewrite of satisfaction.
