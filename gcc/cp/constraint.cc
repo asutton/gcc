@@ -2319,11 +2319,14 @@ cxx_satisfy_atom (tree expr, tree args, subst_info info)
     return boolean_false_node;
   
   tree type = cv_unqualified (TREE_TYPE (result));
-  if (!same_type_p (type, boolean_type_node))
+  if (type != boolean_type_node)
     {
-      error_at (EXPR_LOC_OR_LOC (result, input_location),
-		"atomic constraint %qE does not have type %qT",
-		result, boolean_type_node);
+      /* This is a hard error. Don't emit the diagnostic when re-running
+         for the purpose of diagnosing constraints.  */
+      if (!(info.complain & tf_error))
+	error_at (EXPR_LOC_OR_LOC (result, input_location),
+		  "atomic constraint %qE does not have type %qT",
+		  result, boolean_type_node);
       return boolean_false_node;
     }
 
@@ -3383,10 +3386,12 @@ cxx_diagnose_expression (location_t loc, tree expr, tree args, tree in_decl)
   switch (TREE_CODE (expr))
     {
       case INTEGER_CST:
-        error_at (exprloc, "%qE is never satisfied", expr);
+        inform (exprloc, "%qE is never satisfied", expr);
         break;
       default:
-	error_at (exprloc, "the constraint %qE evaluated to %<false%>", expr);
+        /* FXIME: The error location is wrong; we should point directly
+           at the position of the expression in the original source.  */
+	inform (exprloc, "the constraint evaluated to %<false%>", expr);
 	break;
     }
 }

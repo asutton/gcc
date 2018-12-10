@@ -4,10 +4,8 @@
 template<typename T>
 concept Type = true;
 
-// FIXME: The error comes from calling f2 in driver. This should be a
-// warning not an error.
 template<typename T>
-concept False = false; // { dg-error "never satisfied" }
+concept False = false;
 
 template<typename T>
 concept Class = __is_class(T);
@@ -209,7 +207,7 @@ struct S3
   constexpr int fn(T) const { return 2; }
 };
 
-int main () {
+void driver_5 () {
   struct X { };
   struct Y { X x; };
 

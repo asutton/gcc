@@ -14,14 +14,8 @@ template<typename T>
 concept Two = One<T> && sizeof(T) >= 8;
 
 // Basic checks
-template<typename T>
-  requires true
-struct ok { };
-
-// FIXME: This error should be a note. That note is also on the wrong line.
-template<typename T>
-  requires false 
-struct err { }; // { dg-error "never satisfied" }
+template<typename T> requires true struct ok { };
+template<typename T> requires false struct err { };
 
 ok<int> ok1;
 err<int> err1; // { dg-error "invalid use of class template" }
