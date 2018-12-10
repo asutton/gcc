@@ -1,3 +1,8 @@
+2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Enable hashing in clauses for efficient lookup.
+	* g++.dg/cpp2a/concepts1.C: Update diagnostics.
+
 2018-07-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Don't normalize constraints in constexpr evaluation.

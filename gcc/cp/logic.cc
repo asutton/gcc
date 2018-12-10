@@ -20,7 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_LIST
-#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
@@ -861,7 +860,7 @@ prove_implication (tree a, tree c)
 } /* namespace */
 #endif
 
-bool 
+static bool 
 parameter_mapping_equivalent_p (tree t1, tree t2)
 {
   tree map1 = TREE_TYPE (t1);
@@ -882,7 +881,7 @@ parameter_mapping_equivalent_p (tree t1, tree t2)
    from the same expression and the targets of the parameter mapping
    are equivalent.  */
 
-bool
+static bool
 constraint_identical_p (tree t1, tree t2)
 {
   if (PRED_CONSTR_EXPR (t1) != PRED_CONSTR_EXPR (t2))
@@ -893,6 +892,39 @@ constraint_identical_p (tree t1, tree t2)
   
   return true;
 }
+
+static hashval_t
+hash_atomic_constraint (tree t)
+{
+  /* Hash the identity of the expression.  */
+  hashval_t val = htab_hash_pointer (PRED_CONSTR_EXPR (t));
+    
+  /* Hash the targets of the parameter map.  */
+  tree p = TREE_TYPE (t);
+  while (p)
+    {
+      val = iterative_hash_template_arg (TREE_PURPOSE (p), val);
+      p = TREE_CHAIN (p);
+    }
+
+  return val;
+}
+
+/* Hash functions for atomic constrains.  */
+
+struct constraint_hash : default_hash_traits<tree>
+{
+  static hashval_t hash (tree t)
+  {
+    return hash_atomic_constraint (t);
+  }
+
+  static bool equal (tree t1, tree t2)
+  {
+    return constraint_identical_p (t1, t2);
+  }
+};
+
 
 /* A conjunctive or disjunctive clause.
 
@@ -910,6 +942,9 @@ struct clause
   clause (tree t)
   {
     m_terms.push_back (t);
+    if (TREE_CODE (t) == PRED_CONSTR)
+      m_set.add (t);
+
     m_current = m_terms.begin();
   }
 
@@ -938,29 +973,82 @@ struct clause
     ++m_current;
   }
 
-  /* Replaces the current term with T.  */
+  /* Replaces the current term at position ITER with T.  If
+     T is an atomic constraint that already appears in the
+     clause, remove but do not replace ITER. Returns a pair
+     containing an iterator to the replace object or past
+     the erased object and a boolean value which is true if
+     an object was erased.  */
 
+  std::pair<iterator, bool> replace (iterator iter, tree t)
+  {
+    gcc_assert (TREE_CODE (*iter) != PRED_CONSTR);
+    if (TREE_CODE (t) == PRED_CONSTR)
+      {
+	if (m_set.add (t))
+	  return std::make_pair (m_terms.erase(iter), true);
+      }
+    *iter = t;
+    return std::make_pair (iter, false);
+  }
+
+  /* Inserts T before ITER in the list of terms.  If T has 
+     already is an atomic constraint that already appears in
+     the clause, no action is taken, and the current iterator
+     is returned. Returns a pair of an iterator to the inserted
+     object or ITER if no insertion occurred and a boolean
+     value which is true if an object was inserted.  */
+
+  std::pair<iterator, bool> insert (iterator iter, tree t)
+  {
+    if (TREE_CODE (t) == PRED_CONSTR)
+    {
+      if (m_set.add (t))
+      	return std::make_pair (iter, false);
+    }
+    return std::make_pair (m_terms.insert (iter, t), true);
+  }
+
+  /* Replaces the current term with T. In the case where the
+     current term is erased (because T is redundant), update
+     the position of the current term to the next term.  */
+  
   void replace (tree t)
   {
-    *m_current = t;
+    m_current = replace (m_current, t).first;
   }
   
   /* Replace the current term with T1 and T2, in that order.  */
 
   void replace (tree t1, tree t2)
   {
-    *m_current = t1;
-    m_terms.insert (std::next (m_current), t2);
+    /* Replace the current term with t1. Ensure that iter points 
+       to the term before which t2 will be inserted.  Update the
+       current term as needed.  */
+    std::pair<iterator, bool> rep = replace (m_current, t1);
+    if (rep.second)
+      m_current = rep.first;
+    else
+      ++rep.first;
+    
+    /* Insert the t2. Make this the current term if we erased
+       the prior term.  */
+    std::pair<iterator, bool> ins = insert (rep.first, t2);
+    if (rep.second && ins.second)
+      m_current = ins.first;
   }
 
   /* Returns true if the clause contains the term T.  */
 
-  bool contains (tree t) const
+  bool contains (tree t)
   {
-    for (const_iterator i = begin(); i != end(); ++i)
-      if (constraint_identical_p (*i, t))
-      	return true;
-    return false;
+    gcc_assert (TREE_CODE (t) == PRED_CONSTR);
+    return m_set.contains (t);
+    
+    // for (const_iterator i = begin(); i != end(); ++i)
+    //   if (constraint_identical_p (*i, t))
+    //   	return true;
+    // return false;
   }
 
 
@@ -999,13 +1087,9 @@ struct clause
     return m_current;
   }
 
-  /* The list of terms.  */
-
-  std::list<tree> m_terms;
-
-  /* The current term.  */
-
-  iterator m_current;
+  std::list<tree> m_terms; /* The list of terms.  */
+  hash_set<tree, constraint_hash> m_set; /* The set of atomic constraints.  */
+  iterator m_current; /* The current term.  */
 };
 
 
@@ -1085,16 +1169,9 @@ struct formula
     return m_clauses.end();
   }
 
-  /* The list of clauses.  */
-  std::list<clause> m_clauses;
-
-  /* The current clause.  */
-  iterator m_current;
+  std::list<clause> m_clauses; /* The list of clauses.  */
+  iterator m_current; /* The current clause.  */
 };
-
-/*---------------------------------------------------------------------------
-                           Debugging
----------------------------------------------------------------------------*/
 
 void
 debug (clause& c)
@@ -1114,27 +1191,18 @@ debug (formula& f)
     }
 }
 
-
-/*---------------------------------------------------------------------------
-                           Logical rules
----------------------------------------------------------------------------*/
-
 /* The logical rules used to analyze a logical formula. The
    "left" and "right" refer to the position of formula in a
-   sequent (as in sequent calculus). Although decompose
-   formulas into CNF or DNF, the machinery used to do that is
-   rooted in a set of logical transformations into sequents.  */
+   sequent (as in sequent calculus).  */
 
 enum rules 
 {
   left, right
 };
 
-std::size_t count_subproblems (tree, rules);
-
 /* Returns true if t distributes over its operands.  */
 
-bool
+static bool
 distributes_p (tree t)
 {
   tree t1 = TREE_OPERAND (t, 0);
@@ -1146,38 +1214,72 @@ distributes_p (tree t)
   return false;
 }
 
-/* Returns the number of clauses for a conjunction on either the
-   left or right side of a sequent. On the left, the conjunction
-   of disjunctions (i.e., CNF) can grow exponentially.  */
+static int count_terms (tree, rules);
 
-std::size_t 
-count_conjunction (tree t, rules r)
+/* The maximum number of allowable terms in a constraint.  */
+
+static int max_size = 4096;
+
+/* Returns the sum of a and b. If the result would overflow,
+   returns -1 to indicate an error condition.  */
+
+static inline int
+add_clamped (int a, int b)
 {
-  int n1 = count_subproblems (TREE_OPERAND (t, 0), r);
-  int n2 = count_subproblems (TREE_OPERAND (t, 1), r);
-  if (r == left && distributes_p (t))
-    return n1 * n2;
-  return n1 + n2;
+  long long n = (long long)a + (long long)b;
+  if (n > max_size)
+    return -1;
+  return n;
 }
 
-/* Returns the number of clauses for a disjunction on either the
-   left or right side of a sequent. On the right, the disjunction
-   of conjunctions (i.e., DNF) can grow exponentially.  */
+/* Returns the product of a and b. If the result would overflow,
+   returns -1 to indicate an error condition.  */
 
-std::size_t
+static inline int
+mul_clamped (int a, int b)
+{
+  long long n = (long long) a * (long long)b;
+  if (n > max_size)
+    return -1;
+  return n;
+}
+
+/* Returns the number of clauses for a conjunction. When converting
+   to DNF (when R == LEFT), a conjunction of disjunctions (i.e., 
+   terms in CNF-like form) can grow exponentially.  */
+
+int
+count_conjunction (tree t, rules r)
+{
+  int n1 = count_terms (TREE_OPERAND (t, 0), r);
+  int n2 = count_terms (TREE_OPERAND (t, 1), r);
+  if (n1 == -1 || n2 == -1)
+    return -1;
+  if (r == left && distributes_p (t))
+    return mul_clamped (n1, n2);
+  return add_clamped (n1, n2);
+}
+
+/* Returns the number of clauses for a conjunction. When converting
+   to CNF (when R == RIGHT), a disjunction of conjunctions (i.e., 
+   terms in DNF-like form) can grow exponentially.  */
+
+static int
 count_disjunction (tree t, rules r)
 {
-  int n1 = count_subproblems (TREE_OPERAND (t, 0), r);
-  int n2 = count_subproblems (TREE_OPERAND (t, 1), r);
+  int n1 = count_terms (TREE_OPERAND (t, 0), r);
+  int n2 = count_terms (TREE_OPERAND (t, 1), r);
+  if (n1 == -1 || n2 == -1)
+    return -1;
   if (r == right && distributes_p (t))
-    return n1 * n2;
-  return n1 + n2;
+    return mul_clamped (n1, n2);
+  return add_clamped (n1, n2);
 }
 
 /* Count the number of subproblems in T.  */
 
-std::size_t
-count_subproblems (tree t, rules r)
+static int
+count_terms (tree t, rules r)
 {
   switch (TREE_CODE (t))
     {
@@ -1188,6 +1290,26 @@ count_subproblems (tree t, rules r)
     default:
       return 1;
     }
+}
+
+/* Returns the maximum number of terms in T if it were
+   converted to DNF.  Returns -1 if the count exceeds the
+   maximum formula size.  */
+
+static int
+dnf_size (tree t)
+{
+  return count_terms (t, left);
+}
+
+/* Returns the maximum number of terms in T if it were 
+   converted to CNF.  Returns -1 if the count exceeds the
+   maximum formula size.  */
+
+static int
+cnf_size (tree t)
+{
+  return count_terms (t, right);
 }
 
 /* A left-conjunction is replaced by its operands.  */
@@ -1283,44 +1405,26 @@ decompose_formula (formula& f, rules r)
     decompose_clause (f, *f.current (), r);
 }
 
-/* Convert the constraint T into disjunctive normal form.
-   This is equivalent to decomposing into sequents as if
-   T were the LHS of a logical implication.  */
+/* Fully decomposing T into a list of sequents, each comprised of
+   a list of atomic constraints, as if T were an antecedent.  */
 
 static formula 
-convert_to_dnf (tree t)
+decompose_antecedent (tree t)
 {
   formula f (t);
   decompose_formula (f, left);
   return f;
 }
 
-/* Convert the constraint T into conjunctive normal form.
-   This is equivalent to decomposing into sequents as if
-   T were the LHS of a logical implication.  */
+/* Fully decomposing T into a list of sequents, each comprised of
+   a list of atomic constraints, as if T were a consequent.  */
 
 static formula
-convert_to_cnf (tree t)
+decompose_consequents (tree t)
 {
   formula f (t);
   decompose_formula (f, right);
   return f;
-}
-
-/* Returns the number of terms in T converted to DNF.  */
-
-static std::size_t 
-dnf_size (tree t)
-{
-  return count_subproblems (t, left);
-}
-
-/* Returns the number of terms in T converted to CNF.  */
-
-static std::size_t
-cnf_size (tree t)
-{
-  return count_subproblems (t, right);
 }
 
 static bool derive_proof (clause&, tree, rules);
@@ -1386,6 +1490,13 @@ derive_proofs (formula& f, tree t, rules r)
   return true;
 }
 
+static inline bool
+diagnose_constraint_size (tree t)
+{
+  error_at (input_location, "%qE exceeds the maximum constraint complexity", t);
+  return false;
+}
+
 /* Returns true if the LEFT constraint subsume the RIGHT constraints.
    This is done by deriving a proof of the conclusions on the RIGHT
    from the assumptions on the LEFT assumptions.  */
@@ -1395,18 +1506,25 @@ subsumes_constraints_nonnull (tree lhs, tree rhs)
 {
   auto_timevar time (TV_CONSTRAINT_SUB);
 
-  /* Decompose the smaller of the two converted constraints and
-     recurse through the larger.  */
-  if (dnf_size (lhs) <= cnf_size (rhs))
+  int n1 = dnf_size (lhs);
+  int n2 = cnf_size (rhs);
+  
+  /* If either constraint would overflow complexity, bail.  */
+  if (n1 == -1)
+    return diagnose_constraint_size (lhs);
+  if (n2 == -1)
+    return diagnose_constraint_size (rhs);
+  
+  /* Decompose the smaller of the two formulas, and recursively
+     check the implication using the larger.  */
+  if (n1 <= n2)
     {
-      formula dnf = convert_to_dnf (lhs);
-      debug (dnf);
+      formula dnf = decompose_antecedent (lhs);
       return derive_proofs (dnf, rhs, left);
     }
   else
     {
-      formula cnf = convert_to_cnf (rhs);
-      debug (cnf);
+      formula cnf = decompose_consequents (rhs);
       return derive_proofs (cnf, lhs, right);
     }
 }

@@ -1,4 +1,29 @@
-2018-07-19  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Enable hashing in clauses for efficient lookup.
+	* logic.cc (parameter_mapping_equivalent_p): Make static.
+	(constraint_identical_p): Make static.
+	(hash_atomic_constraint): New.
+	(constraint_hash): New.
+	(clause/ctor): Save atoms in the hash table.
+	(replace): Save atoms during replacement.
+	(insert): Save atoms during insertion.
+	(contains): Only search the hash table for containment.
+	(clause): Keep a hash of atomic constraints.
+	(distributes_p): Make static.
+	(count_terms): Compute the number of terms needed for a complete
+	normalization of an expression.
+	(add_clamped): Prevent overflow when computing normalized size.
+	(mul_clamped): Prevent overflow when computing normalized size.
+	(count_conjunction): Count the number of terms in conjunction.
+	(count_disjunction): Count the number of terms in conjunction.
+	(dnf_size): New.
+	(cnf_size): New.
+	(diagnose_constraint_size): New.
+	(subsumes_constraints_nonnull): Compare the sizes of normalized formula
+	to determine the cheapest decomposition.
+
+2018-07-27  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Initial rewrite of subsumption.
 	* call.c (joust): Disable redundant subsumption check.

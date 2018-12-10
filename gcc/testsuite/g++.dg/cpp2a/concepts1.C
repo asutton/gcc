@@ -42,8 +42,10 @@ concept C3 = true; // { dg-error "different kind of symbol" }
 template<typename T>
 concept True = true;
 
+// FIXME: The error comes from calling f2 in driver. This should be a
+// warning not an error.
 template<typename T>
-concept False = false;
+concept False = false; // { dg-error "never satisfied" }
 
 static_assert(True<int>);
 static_assert(False<int>); // { dg-error "static assertion failed" }
