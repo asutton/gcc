@@ -141,7 +141,7 @@ struct clause
      copied list of terms.  */
 
   clause (clause const& c)
-    : m_terms (c.m_terms), m_current (m_terms.begin ())
+    : m_terms (c.m_terms), m_set(c.m_set), m_current (m_terms.begin ())
   {
     std::advance (m_current, std::distance (c.begin (), c.current ()));
   }
@@ -290,6 +290,8 @@ struct formula
 
   formula (tree t)
   {
+    /* This should call emplace_back(). There's a an extra copy being
+       invoked by using push_back().  */
     m_clauses.push_back (t);
     m_current = m_clauses.begin ();
   }

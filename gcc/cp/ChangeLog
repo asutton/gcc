@@ -1,5 +1,11 @@
 2018-09-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Fix subsumption error.
+	* logic.cc (clause/ctor): Explicitly copy the hash table when copying
+	clauses.
+
+2018-09-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Stop using C++14 features.
 	* constraint.cc (subst_info): New constructor.
 	(satisfy_constraint): Explicitly invoke constructor.
