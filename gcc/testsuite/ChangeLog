@@ -1,5 +1,17 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Moving tests around.
+	* g++.dg/concepts/req1.C: Deleted.
+	* g++.dg/concepts/req2.C: Deleted.
+	* g++.dg/concepts/req3.C: Deleted.
+	* g++.dg/concepts/req4.C: Deleted.
+	* g++.dg/concepts/req5.C: Deleted.
+	* g++.dg/concepts/req6.C: Deleted.
+	* g++.dg/concepts/req7.C: Deleted.
+	* g++.dg/cpp2a/concepts-requires3.C: Added tests.
+
+2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Removing legacy test.
 	* g++.dg/concepts/req-neg1.C: Deleted.
 
