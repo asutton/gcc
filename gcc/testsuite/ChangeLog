@@ -1,3 +1,8 @@
+2018-07-30  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Import tests from concepts TS tests.
+	* g++.dg/cpp2a/concepts2.C: New tests.
+
 2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Instantiation fixes during constraint diagnostics.
