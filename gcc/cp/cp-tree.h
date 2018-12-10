@@ -7664,7 +7664,15 @@ extern tree tsubst_constraint                   (tree, tree, tsubst_flags_t, tre
 extern tree tsubst_constraint_info              (tree, tree, tsubst_flags_t, tree);
 extern bool function_concept_check_p            (tree);
 extern tree expand_concept                      (tree, tree);
-extern bool expanding_concept                   ();
+
+struct parsing_constraint_expression_sentinel
+{
+  parsing_constraint_expression_sentinel ();
+  ~parsing_constraint_expression_sentinel ();
+};
+
+extern bool parsing_constraint_expression_p	();
+
 extern tree evaluate_constraints                (tree, tree);
 extern tree evaluate_concept                    (tree, tree);
 extern tree evaluate_function_concept           (tree, tree);

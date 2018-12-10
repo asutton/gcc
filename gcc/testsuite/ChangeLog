@@ -1,5 +1,10 @@
 2018-08-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Work on constrained class templates.
+	* g++.dg/cpp2a/concepts-class.C: New.
+
+2018-08-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Renaming files.
 	* g++.dg/cpp2a/concepts.C: Renamed from concepts1.C
 	* g++.dg/cpp2a/concepts-fn.C: Renamed from concepts2.C

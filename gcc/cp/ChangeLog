@@ -1,3 +1,33 @@
+2018-08-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Work on constrained class templates.
+	* constexpr.c (cxx_eval_constant_expression): Don't evaluate if
+	processing a template.
+	* constraint.cc (parsing_constraint_expression_sentinel): Renamed
+	from expanding_constraint_sentinel.
+	(finish_constraint_binary_op): Require the sentinel to be set prior
+	to calling.
+	(more_constrained): Allow classes as arguments.
+	* cp-tree.h (parsing_constraint_expression_sentinel): New.
+	* parser.c (declares_constrained_type_template_parameter): Make static.
+	(cp_parser_simple_type_specifier): Handle an error condition of
+	a bad constrained type specifier.
+	(cp_parser_maybe_constrained_type_specifier): Refactor to handle
+	concept definitions.
+	(cp_parser_requires_clause_expression): Declare that we're parsing
+	a constraint.
+	(cp_parser_constraint_expression): Likewise.
+	(synthesize_implicit_template_parm): Don't do consistent binding.
+	Use a new flag for constrained parameters. Combine expressions,
+	not constraints.
+	(maybe_new_partial_specialization): Use new constraint comparison
+	for finding specializations.
+	(template_parameter_constraints_equivalent_p): New.
+	(template_parameters_equivalent_p): Use factored-out function.
+	(redeclare_class_template): Diagnose redeclarations with different
+	constraints.
+	* search.c (accessible_p): Use parsing_constraint_expression_p.
+
 2018-08-12  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix constraint unpacking bug.

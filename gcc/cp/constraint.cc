@@ -48,25 +48,25 @@ along with GCC; see the file COPYING3.  If not see
 #include "print-tree.h"
 
 
-namespace
+static int parsing_constraint_expr = 0;
+
+parsing_constraint_expression_sentinel::
+parsing_constraint_expression_sentinel ()
 {
+  ++parsing_constraint_expr;
+}
 
-int expansion_level = 0;
-
-struct expanding_concept_sentinel
+parsing_constraint_expression_sentinel::
+~parsing_constraint_expression_sentinel()
 {
-  expanding_concept_sentinel ()
-  {
-    ++expansion_level;
-  }
+  --parsing_constraint_expr;
+}
 
-  ~expanding_concept_sentinel()
-  {
-    --expansion_level;
-  }
-};
-
-} // namespace
+bool
+parsing_constraint_expression_p ()
+{
+  return parsing_constraint_expr != 0;
+}
 
 /*---------------------------------------------------------------------------
 		       Constraint expressions
@@ -80,14 +80,13 @@ struct subst_info
 };
 
 
-// Validate the semantic properties of the constraint.
-//
-// FIXME: What happens if we find an overloaded operator? 
+/* Validate the semantic properties of the constraint.
+
+   FIXME: What happens if we find an overloaded operator?  */
 static tree
 finish_constraint_binary_op (location_t loc, tree_code code, tree lhs, tree rhs)
 {
-  expanding_concept_sentinel sentinel;
-
+  gcc_assert (parsing_constraint_expression_p ());
   tree overload;
   tree expr = build_x_binary_op (loc, code, 
 				 lhs, TREE_CODE (lhs), 
@@ -655,14 +654,6 @@ get_concept_definition (tree decl)
 }
 
 } /* namespace */
-
-/* Returns true when a concept is being expanded.  */
-
-bool
-expanding_concept()
-{
-  return expansion_level > 0;
-}
 
 /* Expand a concept declaration by returning its definition.  */
 
@@ -2758,13 +2749,25 @@ strictly_subsumes (tree a, tree b)
 int
 more_constrained (tree d1, tree d2)
 {
+  /* Unpack constraints and arguments from d1.  */
   tree tmpl1 = TREE_CODE (d1) == TEMPLATE_DECL ? d1 : DECL_TI_TEMPLATE (d1);
-  tree args1 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl1));
+  tree decl1 = DECL_TEMPLATE_RESULT (tmpl1);
+  tree args1;
+  if (TREE_CODE (decl1) == TYPE_DECL)
+    args1 = CLASSTYPE_TI_ARGS (TREE_TYPE (decl1));
+  else
+    args1 = DECL_TI_ARGS (decl1);
   tree c1 = get_constraints (tmpl1);
   tree e1 = c1 ? CI_ASSOCIATED_CONSTRAINTS (c1) : NULL_TREE;
 
+  /* Unpack constraints and arguments from d2.  */
   tree tmpl2 = TREE_CODE (d2) == TEMPLATE_DECL ? d2 : DECL_TI_TEMPLATE (d2);
-  tree args2 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl2));
+  tree decl2 = DECL_TEMPLATE_RESULT (tmpl2);
+  tree args2;
+  if (TREE_CODE (decl2) == TYPE_DECL)
+    args2 = CLASSTYPE_TI_ARGS (TREE_TYPE (decl2));
+  else
+    args2 = DECL_TI_ARGS (decl2);
   tree c2 = get_constraints (tmpl2);
   tree e2 = c2 ? CI_ASSOCIATED_CONSTRAINTS (c2) : NULL_TREE;
 

@@ -4913,9 +4913,12 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 	   the template arguments are non-dependent.  */
 	if (!concept_definition_p (TREE_OPERAND (t, 0)))
 	  internal_error ("unexpected template_id_expr %qE", t);
-	
-	r = evaluate_constraint_expression (t);
-        break;
+
+	if (!processing_template_decl)
+	  return evaluate_constraint_expression (t, NULL_TREE);
+	else
+	  *non_constant_p = true;
+	return t;
       }
 
     default:

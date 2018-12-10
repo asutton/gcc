@@ -15720,13 +15720,12 @@ finish_constrained_parameter (cp_parser *parser,
 /* Returns true if the parsed type actually represents the declaration
    of a type template-parameter.  */
 
-static inline bool
+static bool
 declares_constrained_type_template_parameter (tree type)
 {
   return (is_constrained_parameter (type)
 	  && TREE_CODE (TREE_TYPE (type)) == TEMPLATE_TYPE_PARM);
 }
-
 
 /* Returns true if the parsed type actually represents the declaration of
    a template template-parameter.  */
@@ -17679,6 +17678,7 @@ cp_parser_simple_type_specifier (cp_parser* parser,
       /* Otherwise, look for a type-name.  */
       else
 	type = cp_parser_type_name (parser);
+
       /* Keep track of all name-lookups performed in class scopes.  */
       if (type
 	  && !global_p
@@ -17690,6 +17690,7 @@ cp_parser_simple_type_specifier (cp_parser* parser,
       if (((flags & CP_PARSER_FLAGS_OPTIONAL) || cxx_dialect >= cxx17)
 	  && !cp_parser_parse_definitely (parser))
 	type = NULL_TREE;
+
       if (!type && cxx_dialect >= cxx17)
 	{
 	  if (flags & CP_PARSER_FLAGS_OPTIONAL)
@@ -17717,6 +17718,14 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 		  && (DECL_CLASS_TEMPLATE_P (tmpl)
 		      || DECL_TEMPLATE_TEMPLATE_PARM_P (tmpl)))
 		type = make_template_placeholder (tmpl);
+	      else if (tmpl && concept_definition_p (tmpl))
+		{
+		  /* Getting here means that we've previously failed to
+		     interpret a concept-name as a constrained-type-specifier.
+		     The error should already have been diagnosed, so fail
+		     silently.  */
+		  type = error_mark_node;
+		}
 	      else
 		{
 		  type = error_mark_node;
@@ -17858,7 +17867,7 @@ cp_parser_type_name (cp_parser* parser, bool typename_keyword_p)
 	  && TYPE_DECL_ALIAS_P (type_decl))
 	gcc_assert (DECL_TEMPLATE_INSTANTIATION (type_decl));
       else if (is_constrained_parameter (type_decl))
-        /* Don't do anything. */ ;
+        /* Do nothing. */ ;
       else
 	cp_parser_simulate_error (parser);
 
@@ -17904,39 +17913,58 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
     return NULL_TREE;
 
   /* Deduce the checked constraint and the prototype parameter.  */
-  tree conc;
+  tree con;
   tree proto;
-  if (!deduce_constrained_parameter (check, conc, proto))
+  if (!deduce_constrained_parameter (check, con, proto))
     return NULL_TREE;
 
   /* In template parameter scope, this results in a constrained
-     parameter. Return a descriptor of that parm.  
-
-     FIXME: In a template parameter list, we require a trailing
-     auto to introduce non-type template parameters.  */
+     parameter. Return a descriptor of that parm.  */
   if (processing_template_parmlist)
-    return build_constrained_parameter (conc, proto, args);
+    {
+      /* If auto appears after the type name, then we're introducing
+         an auto-declared parameter.  */
+      if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AUTO))
+	{
+	  /* This error might occur in pre-C++20, which allows concepts
+	     to introduce any kind of parameter.  */
+	  if (TREE_CODE (proto) != TYPE_DECL)
+	    error_at (input_location, "invalid use of %<auto%>");
+	  cp_lexer_consume_token (parser->lexer);
+	  return make_constrained_auto (con, args);
+        }
+      else
+      	/* Otherwise, this is a constrained type parameter.  */
+        return build_constrained_parameter (con, proto, args);
+    }
 
   /* In a parameter-declaration-clause, constrained-type
      specifiers result in invented template parameters.  */
   if (parser->auto_is_implicit_function_template_parm_p)
     {
-      /* FIXME: For non-type template arguments, require an
-         extra auto after the constrained parameter.  */
-      tree x = build_constrained_parameter (conc, proto, args);
-      return synthesize_implicit_template_parm (parser, x);
-    }
-  else
-    {
-     /* Otherwise, we're in a context where the constrained
-        type name is deduced and the constraint applies
-        after deduction.  
-
-        FIXME: Look for an optional auto after the check.  */
-      return make_constrained_auto (conc, args);
+      /* FIXME:  Use -fconcepts-natural to make the auto optional?  */
+      if (cp_lexer_next_token_is_not_keyword (parser->lexer, RID_AUTO))
+	{
+	  error_at (input_location, "%<auto%> is required for abbreviated "
+				    "function templates"); 
+	  return error_mark_node;
+	}
+      else
+        cp_lexer_consume_token (parser->lexer);
+      tree parm = build_constrained_parameter (con, proto, args);
+      return synthesize_implicit_template_parm (parser, parm);
     }
 
-  return NULL_TREE;
+  /* Otherwise, we're in a context where the constrained
+     type name is deduced and the constraint applies
+     after deduction.
+
+     FIXME: Warn if auto is not present using some flag for
+     concepts.  */
+  if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AUTO))
+    cp_lexer_consume_token (parser->lexer);
+  
+  return make_constrained_auto (con, args);
 }
 
 /* If DECL refers to a concept, return a TYPE_DECL representing
@@ -26219,6 +26247,7 @@ cp_parser_concept_definition (cp_parser *parser)
       return error_mark_node;
     }
 
+  parsing_constraint_expression_sentinel parsing_constraint;
   tree init = cp_parser_constraint_expression (parser);
   if (init == error_mark_node)
     {
@@ -26233,7 +26262,7 @@ cp_parser_concept_definition (cp_parser *parser)
 // Requires Clause
 
 
-// Parse a primary expression within a constraint.
+/* Parse a primary expression within a constraint.  */
 static tree
 cp_parser_constraint_primary_expression (cp_parser *parser)
 {
@@ -26247,11 +26276,11 @@ cp_parser_constraint_primary_expression (cp_parser *parser)
   return finish_constraint_primary_expr (loc, expr);
 }
 
-// Parse a constraint-logical-and-expression.
-//
-//     constraint-logical-and-expression:
-//       primary-expression
-//       constraint-logical-and-expression '&&' primary-expression.
+/* Parse a constraint-logical-and-expression.
+
+     constraint-logical-and-expression:
+       primary-expression
+       constraint-logical-and-expression '&&' primary-expression  */
 static tree
 cp_parser_constraint_logical_and_expression (cp_parser *parser)
 {
@@ -26265,11 +26294,11 @@ cp_parser_constraint_logical_and_expression (cp_parser *parser)
   return lhs;
 }
 
-// Parse a constraint-logical-or-expression.
-//
-//     constraint-logical-or-expression:
-//       constraint-logical-and-expression
-//       constraint-logical-or-expression '||' constraint-logical-and-expression
+/* Parse a constraint-logical-or-expression.
+
+     constraint-logical-or-expression:
+       constraint-logical-and-expression
+       constraint-logical-or-expression '||' constraint-logical-and-expression  */
 static tree
 cp_parser_constraint_logical_or_expression (cp_parser *parser)
 {
@@ -26283,11 +26312,12 @@ cp_parser_constraint_logical_or_expression (cp_parser *parser)
   return lhs;
 }
 
-/// Parse the expression after a requires-clause. This has a different grammar
-/// than that in the concepts TS.
+/* Parse the expression after a requires-clause. This has a different grammar
+    than that in the concepts TS.  */
 static tree
 cp_parser_requires_clause_expression (cp_parser *parser)
 {
+  parsing_constraint_expression_sentinel parsing_constraint;
   ++processing_template_decl;
   tree expr = cp_parser_constraint_logical_or_expression (parser);
   if (check_for_bare_parameter_packs (expr))
@@ -26296,18 +26326,18 @@ cp_parser_requires_clause_expression (cp_parser *parser)
   return expr;
 }
 
-// Parse a expression after a requires clause.
-//
-//    constraint-expression:
-//      logical-or-expression 
-//
-// The required logical-or-expression must be a constant expression. Note
-// that we don't check that the expression is constepxr here. We defer until
-// we analyze constraints and then, we only check atomic constraints.
+/* Parse a expression after a requires clause.
+
+    constraint-expression:
+      logical-or-expression 
+
+   The required logical-or-expression must be a constant expression. Note
+   that we don't check that the expression is constepxr here. We defer until
+   we analyze constraints and then, we only check atomic constraints.  */
 static tree
 cp_parser_constraint_expression (cp_parser *parser)
 {
-  // Parse the requires clause so that it is not automatically folded.
+  parsing_constraint_expression_sentinel parsing_constraint;
   ++processing_template_decl;
   tree expr = cp_parser_binary_expression (parser, false, false,
                                            PREC_NOT_OPERATOR, NULL);
@@ -26317,12 +26347,12 @@ cp_parser_constraint_expression (cp_parser *parser)
   return expr;
 }
 
-// Optionally parse a requires clause:
-//
-//    requires-clause:
-//      `requires` constraint-logical-or-expression.
-// [ConceptsTS]
-//      `requires constraint-expression
+/* Optionally parse a requires clause:
+
+      requires-clause:
+        `requires` constraint-logical-or-expression.
+   [ConceptsTS]
+        `requires constraint-expression.  */
 static tree
 cp_parser_requires_clause_opt (cp_parser *parser)
 {
@@ -40864,34 +40894,6 @@ synthesize_implicit_template_parm  (cp_parser *parser, tree constr)
 {
   gcc_assert (current_binding_level->kind == sk_function_parms);
 
-   /* Before committing to modifying any scope, if we're in an
-      implicit template scope, and we're trying to synthesize a
-      constrained parameter, try to find a previous parameter with
-      the same name.  This is the same-type rule for abbreviated
-      function templates.
-
-      NOTE: We can generate implicit parameters when tentatively
-      parsing a nested name specifier, only to reject that parse
-      later. However, matching the same template-id as part of a
-      direct-declarator should generate an identical template
-      parameter, so this rule will merge them. */
-  if (parser->implicit_template_scope && constr)
-    {
-      tree t = parser->implicit_template_parms;
-      while (t)
-        {
-          if (equivalent_placeholder_constraints (TREE_TYPE (t), constr))
-	    {
-	      tree d = TREE_VALUE (t);
-	      if (TREE_CODE (d) == PARM_DECL)
-		/* Return the TEMPLATE_PARM_INDEX.  */
-		d = DECL_INITIAL (d);
-	      return d;
-	    }
-          t = TREE_CHAIN (t);
-        }
-    }
-
   /* We are either continuing a function template that already contains implicit
      template parameters, creating a new fully-implicit function template, or
      extending an existing explicit function template with implicit template
@@ -41002,6 +41004,7 @@ synthesize_implicit_template_parm  (cp_parser *parser, tree constr)
   tree synth_tmpl_parm;
   bool non_type = false;
 
+  /* FIXME: In C++20, only type parameters can be introduced.  */
   if (proto == NULL_TREE || TREE_CODE (proto) == TYPE_DECL)
     synth_tmpl_parm
       = finish_template_type_parm (class_type_node, synth_id);
@@ -41015,7 +41018,7 @@ synthesize_implicit_template_parm  (cp_parser *parser, tree constr)
       non_type = true;
     }
 
-  // Attach the constraint to the parm before processing.
+  /* Attach the constraint to the parm before processing.  */
   tree node = build_tree_list (NULL_TREE, synth_tmpl_parm);
   TREE_TYPE (node) = constr;
   tree new_parm
@@ -41024,6 +41027,13 @@ synthesize_implicit_template_parm  (cp_parser *parser, tree constr)
 			     node,
 			     /*non_type=*/non_type,
 			     /*param_pack=*/false);
+
+  /* Mark the synthetic declaration "virtual". This is used when
+     comparing template-heads to determine if whether an abbreviated
+     function template is equivalent to an explicit template. 
+
+     Note that DECL_ARTIFICIAL is used elsewhere for template parameters.  */
+  DECL_VIRTUAL_P (TREE_VALUE (new_parm)) = true;
 
   // Chain the new parameter to the list of implicit parameters.
   if (parser->implicit_template_parms)
@@ -41058,12 +41068,12 @@ synthesize_implicit_template_parm  (cp_parser *parser, tree constr)
       TREE_VEC_ELT (new_parms, new_parm_idx) = parser->implicit_template_parms;
     }
 
-  // If the new parameter was constrained, we need to add that to the
-  // constraints in the template parameter list.
+  /* If the new parameter was constrained, we need to add that to the
+     constraints in the template parameter list.  */
   if (tree req = TEMPLATE_PARM_CONSTRAINTS (tree_last (new_parm)))
     {
       tree reqs = TEMPLATE_PARMS_CONSTRAINTS (current_template_parms);
-      reqs = conjoin_constraints (reqs, req);
+      reqs = combine_constraint_expressions (reqs, req);
       TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = reqs;
     }
 
