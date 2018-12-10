@@ -1,5 +1,11 @@
 2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Instantiation fixes during constraint diagnostics.
+	* g++.dg/cpp2a/concepts1.C (driver_2): Renamed from main.
+	* g++.dg/cpp2a/concepts2.C: New.
+
+2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Enable hashing in clauses for efficient lookup.
 	* g++.dg/cpp2a/concepts1.C: Update diagnostics.
 

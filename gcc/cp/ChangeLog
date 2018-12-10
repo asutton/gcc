@@ -1,5 +1,11 @@
 2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Instantiation fixes during constraint diagnostics.
+	* constraint.cc (diagnose_declaration_constraints): Turn on template
+	processing to suppress certain analyses.
+
+2018-07-29  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Enable hashing in clauses for efficient lookup.
 	* logic.cc (parameter_mapping_equivalent_p): Make static.
 	(constraint_identical_p): Make static.

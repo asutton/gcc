@@ -95,7 +95,7 @@ struct S2 : S1 {
   void g() { }
 };
 
-int main()
+int driver_2()
 {
   S1 x;
   S2 y;
@@ -103,3 +103,4 @@ int main()
   static_assert(algo(y) == 2);
   ambig(x); // { dg-error "call of overload | is ambiguous" }
 }
+

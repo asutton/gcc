@@ -3359,15 +3359,18 @@ diagnose_declaration_constraints (location_t loc, tree decl, tree args)
 	args = TI_ARGS (ti);
     }
 
+  /* Turn off template processing, regardless of context.  */
+  processing_template_decl_sentinel proc (true);
+
   /* Recursively diagnose the associated constraints by noisily 
      re-running satisfaction on the associated constraints.  
 
      FIXME: Re-calling satisfy_expression leads to bottom-up
-     ordering of constraints. We get the "leaf" errors before we
-     get any context. Maybe that's helpful if we can get
-     the diagnostic facilities to aggregate errors in particular
-     contexts, but right now, it leads to an "upside-down
-     and redundant interpretation of diagnostics.  */
+     ordering of constraints. We get the "leaf" errors before
+     we get any context. Maybe that's helpful if we can get the
+     diagnostic facilities to aggregate errors in particular
+     contexts, but right now, it leads to an "upside-down and
+     redundant interpretation of diagnostics.  */
   tree expr = CI_ASSOCIATED_CONSTRAINTS (get_constraints (decl));
   subst_info info { tf_warning_or_error, decl };
   cxx_satisfy_expression (expr, args, info);
