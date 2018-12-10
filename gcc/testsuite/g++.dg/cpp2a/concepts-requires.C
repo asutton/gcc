@@ -1,7 +1,6 @@
 // { dg-do compile }
 // { dg-options "-std=c++2a" }
 
-
 template<typename T>
 concept Class = __is_class(T);
 
@@ -18,15 +17,21 @@ void (*fn(int))() requires false;     // { dg-error "return type" }
 void g(int (*)() requires true);      // { dg-error "parameter|non-function" }
 auto* p = new (void(*)(char) requires true); // { dg-error "type-id" }
 void f4(auto a) requires Class<decltype(a)> { }
-
 void f5(auto a) requires requires (decltype(a) x) { -x; } { } 
+
+struct Test {
+  void f(auto a) requires Class<decltype(a)>;
+} test;
 
 void driver_1() {
   struct S { } s;
   f4(s);
   f5(0);
   f5((void*)0); // { dg-error "cannot call" }
+  test.f(s);
 }
+
+void Test::f(auto a) requires Class<decltype(a)> { }
 
 template<bool B> requires B struct S0; // OK
 
@@ -45,3 +50,20 @@ template<typename T, T X> requires X struct S4 { }; // OK
 S4<int, 0> x1;      // { dg-error "invalid use of class template|does not have type" }
 S4<bool, true> x2; // OK
 S4<bool, false> x3; // { dg-error "invalid use of class template" }
+
+struct fool {
+  constexpr fool operator&&(fool) const { return {}; }
+  constexpr fool operator||(fool) const { return {}; }
+};
+
+template<typename T> constexpr fool p1() { return {}; }
+template<typename T> constexpr fool p2() { return {}; }
+
+template<typename T>
+concept Bad = p1<T>() && p2<T>();
+
+template<typename T> requires Bad<T> void bad(T x) { }
+
+int main() {
+  bad(0); // { dg-error "cannot call" }
+}

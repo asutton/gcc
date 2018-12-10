@@ -1,5 +1,10 @@
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Add tests for non-bool atoms.
+	* g++.dg/cpp2a/concepts-requires.C: New tests.
+
+2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Remove old constraint-based diagnostics.
 	* g++.dg/cpp2a/concepts-requires.C: Update diagnostics.
 

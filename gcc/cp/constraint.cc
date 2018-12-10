@@ -2277,22 +2277,12 @@ cxx_satisfy_atom (tree expr, tree args, subst_info info)
   /* [17.4.1.2] ... lvalue-to-value conversion is performed as
      necessary, and EXPR shall be a constant expression of type
      bool. Note that the boolean-ness of atomic constraints is a
-     hard error.  */
+     hard error, but we diagnose it like any other error.  */
   result = force_rvalue (result, info.complain);
   if (result == error_mark_node)
     return boolean_false_node;
-  
-  tree type = cv_unqualified (TREE_TYPE (result));
-  if (type != boolean_type_node)
-    {
-      /* This is a hard error. Don't emit the diagnostic when re-running
-         for the purpose of diagnosing constraints.  */
-      if (!(info.complain & tf_error))
-	error_at (EXPR_LOC_OR_LOC (result, input_location),
-		  "atomic constraint %qE does not have type %qT",
-		  result, boolean_type_node);
-      return boolean_false_node;
-    }
+  if (cv_unqualified (TREE_TYPE (result)) != boolean_type_node)
+    return boolean_false_node;
 
   /* If we already computed value, don't try again.  */
   if (result == boolean_true_node || result == boolean_false_node)
@@ -2344,7 +2334,6 @@ cxx_satisfy_expression (tree expr, tree args, subst_info info)
       default:
 	return cxx_satisfy_atom (expr, args, info);
     }
-  gcc_unreachable ();
 }
 
 /* Check that the constraint is satisfied, according to the rules
@@ -3128,30 +3117,33 @@ diagnose_or (tree expr, tree args, tree in_decl)
   return true;
 }
 
-/* Emit a diagnostic for the constraint. Returns true if any diagnostics
-   have been emitted.  */
-
-static bool
-diagnose_constraint (tree expr, tree args, tree in_decl)
+static void
+diagnose_atom (tree expr, tree args, tree in_decl)
 {
-  /* Handle disjunction as a special case.  */
-  if (TREE_CODE (expr) == TRUTH_ORIF_EXPR)
-    return diagnose_or (expr, args, in_decl);
-
-  /* If the constraint is satisfied, there are no diagnostics to emit.  */
-  if (constraints_satisfied_p (expr, args))
-    return false;
-
   location_t loc = get_constraint_location (expr);
-  
+
+  /* Substitute through the expression quietly. If that fails,
+     replay the error.  */
+  tree result = tsubst_expr (expr, args, tf_none, in_decl, false);
+  if (result == error_mark_node)
+    {
+      tsubst_expr (expr, args, tf_none, in_decl, false);
+      return;
+    }
+
+  /* Convert to an rvalue and check for type bool.  */
+  result = force_rvalue (result, tf_warning_or_error);
+  if (result == error_mark_node)
+    return;
+  if (cv_unqualified (TREE_TYPE (result)) != boolean_type_node)
+    {
+      inform (loc, "atomic constraint does not have type %<bool%>", expr);
+      return;
+    }
+
+  /* Provide precise diagnostics.  */
   switch (TREE_CODE (expr))
     {
-    case TRUTH_ANDIF_EXPR:
-      diagnose_and (expr, args, in_decl);
-      break;
-    case TEMPLATE_ID_EXPR:
-      diagnose_check (expr, args, in_decl);
-      break;
     case TRAIT_EXPR:
       diagnose_trait (expr, args);
       break;
@@ -3159,15 +3151,40 @@ diagnose_constraint (tree expr, tree args, tree in_decl)
       diagnose_requires (expr, args, in_decl);
       break;
     case INTEGER_CST:
-      /* This is almost certainly the literal 'false'.  */
       inform (loc, "%qE is never satisfied", expr);
       break;
     default:
-      /* Don't emit the expression; it should be highlighted by
-         the location.  */
       inform (loc, "the constraint %qE evaluated to %<false%>", expr);
       break;
     }
+}
+
+/* Emit a diagnostic for the constraint. Returns true if any diagnostics
+   have been emitted.  */
+
+static bool
+diagnose_constraint (tree expr, tree args, tree in_decl)
+{
+  /* Handle logical operators separately.  */
+  switch (TREE_CODE (expr))
+    {
+    case TRUTH_ANDIF_EXPR:
+      return diagnose_and (expr, args, in_decl);
+    case TRUTH_ORIF_EXPR:
+      return diagnose_or (expr, args, in_decl);
+    default:
+      break;
+    }
+
+  /* If the constraint is satisfied, there are no diagnostics to emit.  */
+  if (constraints_satisfied_p (expr, args))
+    return false;
+
+  /* Search for diagnostics.  */
+  if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
+    diagnose_check (expr, args, in_decl);
+  else
+    diagnose_atom (expr, args, in_decl);
   return true;
 }
 

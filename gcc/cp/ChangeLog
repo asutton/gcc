@@ -1,5 +1,12 @@
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Move check into diagnostics.
+	* constraint.cc (cxx_satisfy_atom): Return false on non-boolean atoms.
+	(diagnose_atom): Diagnose non-boolean atoms.
+	(diagnose_constraint): New.
+
+2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Remove more constraint-based diagnostics.
 	* constraint.cc (constraint_threshold): Renamed.
 	(diagnose_other_expression): Deleted.
