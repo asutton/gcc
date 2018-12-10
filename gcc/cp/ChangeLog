@@ -1,5 +1,48 @@
 2018-07-19  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Initial rewrite of subsumption.
+	* call.c (joust): Disable redundant subsumption check.
+	* constraint.cc (subst_info): Moved.
+	* (variable_concept_check_p): New.
+	* (expand_concept): Get the concept definition directly. Don't 
+	normalize or learn implications.
+	(normalize_logical_operation): Pass substitution info through call.
+	(normalize_simple_requirement): Delete.
+	(normalize_type_requirement): Delete.
+	(normalize_compound_requirement): Delete.
+	(normalize_nested_requirement): Delete.
+	(normalize_requirement): Delete.
+	(normalize_requirements): Delete.
+	(normalize_requires_expression): Delete.
+	(normalize_variable_concept_check): Rename. Handle concept definitions.
+	(normalize_function_concept_check): Disable.
+	(check_for_logical_overloads): Delete.
+	(normalize_concept_check): Use only concept definitions.
+	(map_arguments): New. Associate template parameters with arguments.
+	(build_parameter_mapping): New. Extract used parameters.
+	(normalize_expression): Rewrite.
+	(normalize_conjunction): Delete.
+	(normalize_disjunction): Delete.
+	(normalize_predicate_constraint): Delete.
+	(normalize_parameterized_constraint): Delete.
+	(finish_template_introduction): Don't normalize constraints.
+	(more_constrained): Normalize before calling out to subsumption.
+	* cp-objcp-common.c (cp_common_init_ts): Make predicate constraints
+	typed.
+	* cp-tree.h (concept_check_p): New.
+	(find_template_parameters): New.
+	* logic.cc. Completely rewrite.
+	* pt.c (template_parm_level_and_index): Make non-static.
+	(for_each_template_parm_r): Handle requires expressions.
+	(for_each_template_parm): New overload.
+	(keep_template_parm): New.
+	(find_template_parameters): New.
+	(tsubst_function_decl): Always associated constraints with functions.
+	(more_specialized_fn): Change how winners and losers are chosen.
+	(make_constrained_auto): Don't normalize constraints.
+
+2018-07-19  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Don't normalize constraints in constexpr evaluation.
 	* constexpr.c (cxx_eval_constant_expression): Allow concept definitions
 	in constexpr.

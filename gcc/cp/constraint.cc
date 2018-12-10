@@ -72,6 +72,14 @@ struct expanding_concept_sentinel
 		       Constraint expressions
 ---------------------------------------------------------------------------*/
 
+/* Information provided to substitution.  */
+struct subst_info
+{
+  tsubst_flags_t complain;
+  tree in_decl;
+};
+
+
 // Validate the semantic properties of the constraint.
 //
 // FIXME: What happens if we find an overloaded operator? 
@@ -189,7 +197,8 @@ conjoin_constraints (tree t)
 bool
 function_concept_check_p (tree t)
 {
-  gcc_assert (TREE_CODE (t) == CALL_EXPR);
+  if (TREE_CODE (t) != CALL_EXPR)
+    return false;
   tree fn = CALL_EXPR_FN (t);
   if (fn != NULL_TREE
       && TREE_CODE (fn) == TEMPLATE_ID_EXPR)
@@ -200,6 +209,16 @@ function_concept_check_p (tree t)
 	return true;
     }
   return false;
+}
+
+/* True if T is a template-id expression referring to a variable concept.  */
+
+bool
+variable_concept_check_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_ID_EXPR)
+    return false;
+  return variable_concept_p (t);
 }
 
 /* Returns true if any of the arguments in the template
@@ -621,12 +640,23 @@ expanding_concept()
   return expansion_level > 0;
 }
 
-/* Expand a concept declaration (not a template) and its arguments to
-   a constraint defined by the concept's initializer or definition.  */
+/* Expand a concept declaration by returning its definition.  */
 
 tree
-expand_concept (tree decl, tree args)
+expand_concept (tree tmpl, tree args)
 {
+  gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
+  gcc_assert (concept_definition_p (tmpl));
+
+  tree decl = DECL_TEMPLATE_RESULT (tmpl);
+  return DECL_INITIAL (decl);
+
+  if (TREE_CODE (decl) == TEMPLATE_DECL)
+    decl = DECL_TEMPLATE_RESULT (decl);
+
+  tree def = get_concept_definition (decl);
+
+  #if 0
   expanding_concept_sentinel sentinel;
 
   if (TREE_CODE (decl) == TEMPLATE_DECL)
@@ -651,6 +681,7 @@ expand_concept (tree decl, tree args)
   tree norm = normalize_expression (result);
   learn_implications (tmpl, args, norm);
   return save_concept_expansion (tmpl, args, norm);
+#endif
 }
 
 
@@ -658,156 +689,35 @@ expand_concept (tree decl, tree args)
 		Stepwise normalization of expressions
 
 This set of functions will transform an expression into a constraint
-in a sequence of steps. Normalization does not not look into concept
-definitions.
+in a sequence of steps. 
 ---------------------------------------------------------------------------*/
+
+static tree normalize_expression (tree, tree, subst_info);
 
 /* Transform a logical-or or logical-and expression into either
    a conjunction or disjunction. */
 
 tree
-normalize_logical_operation (tree t, tree_code c)
+normalize_logical_operation (tree t, tree args, tree_code c, subst_info info)
 {
-  tree t0 = normalize_expression (TREE_OPERAND (t, 0));
-  tree t1 = normalize_expression (TREE_OPERAND (t, 1));
+  // verbatim ("CONNECT %qE", t);
+  tree t0 = normalize_expression (TREE_OPERAND (t, 0), args, info);
+  tree t1 = normalize_expression (TREE_OPERAND (t, 1), args, info);
   return build_nt (c, t0, t1);
-}
-
-/* A simple requirement T introduces an expression constraint
-   for its expression. */
-
-inline tree
-normalize_simple_requirement (tree t)
-{
-  return build_nt (EXPR_CONSTR, TREE_OPERAND (t, 0));
-}
-
-/* A type requirement T introduce a type constraint for its type.  */
-
-inline tree
-normalize_type_requirement (tree t)
-{
-  return build_nt (TYPE_CONSTR, TREE_OPERAND (t, 0));
-}
-
-/* A compound requirement T introduces a conjunction of constraints
-   depending on its form.  The conjunction always includes an
-   expression constraint for the expression of the requirement.
-   If a trailing return type was specified, the conjunction includes
-   either an implicit conversion constraint or an argument deduction
-   constraint.  If the noexcept specifier is present, the conjunction
-   includes an exception constraint.  */
-
-tree
-normalize_compound_requirement (tree t)
-{
-  tree expr = TREE_OPERAND (t, 0);
-  tree constr = build_nt (EXPR_CONSTR, TREE_OPERAND (t, 0));
-
-  /* If a type is given, append an implicit conversion or
-     argument deduction constraint.  */
-  if (tree type = TREE_OPERAND (t, 1))
-    {
-      tree type_constr;
-      /* TODO: We should be extracting a list of auto nodes
-	 from type_uses_auto, not a single node */
-      if (tree placeholder = type_uses_auto (type))
-	type_constr = build_nt (DEDUCT_CONSTR, expr, type, placeholder);
-      else
-	type_constr = build_nt (ICONV_CONSTR, expr, type);
-      constr = conjoin_constraints (constr, type_constr);
-    }
-
-  /* If noexcept is present, append an exception constraint. */
-  if (COMPOUND_REQ_NOEXCEPT_P (t))
-    {
-      tree except = build_nt (EXCEPT_CONSTR, expr);
-      constr = conjoin_constraints (constr, except);
-    }
-
-  return constr;
-}
-
-/* A nested requirement T introduces a conjunction of constraints
-   corresponding to its constraint-expression.
-
-   If the result of transforming T is error_mark_node, the resulting
-   constraint is a predicate constraint whose operand is also
-   error_mark_node. This preserves the constraint structure, but
-   will guarantee that the constraint is never satisfied.  */
-
-inline tree
-normalize_nested_requirement (tree t)
-{
-  return normalize_expression (TREE_OPERAND (t, 0));
-}
-
-/* Transform a requirement T into one or more constraints.  */
-
-tree
-normalize_requirement (tree t)
-{
-  switch (TREE_CODE (t))
-    {
-    case SIMPLE_REQ:
-      return normalize_simple_requirement (t);
-
-    case TYPE_REQ:
-      return normalize_type_requirement (t);
-
-    case COMPOUND_REQ:
-      return normalize_compound_requirement (t);
-
-    case NESTED_REQ:
-      return normalize_nested_requirement (t);
-
-    default:
-      gcc_unreachable ();
-    }
-  return error_mark_node;
-}
-
-/* Transform a sequence of requirements into a conjunction of
-   constraints. */
-
-tree
-normalize_requirements (tree t)
-{
-  tree result = NULL_TREE;
-  for (; t; t = TREE_CHAIN (t))
-    {
-      tree constr = normalize_requirement (TREE_VALUE (t));
-      result = conjoin_constraints (result, constr);
-    }
-  return result;
-}
-
-/* The normal form of a requires-expression is a parameterized
-   constraint having the same parameters and a conjunction of
-   constraints representing the normal form of requirements.  */
-
-tree
-normalize_requires_expression (tree t)
-{
-  tree operand = normalize_requirements (TREE_OPERAND (t, 1));
-  if (tree parms = TREE_OPERAND (t, 0))
-    return build_nt (PARM_CONSTR, parms, operand);
-  else
-    return operand;
 }
 
 /* For a template-id referring to a variable concept, returns
    a check constraint. Otherwise, returns a predicate constraint. */
 
 tree
-normalize_template_id_expression (tree t)
+normalize_variable_concept_check (tree t, tree args, subst_info info)
 {
   tree tmpl = TREE_OPERAND (t, 0);
-  tree info;
+  tree check;
   if (concept_definition_p (tmpl))
-    info = resolve_concept_definition_check (t);
+    check = resolve_concept_definition_check (t);
   else if (variable_template_p (tmpl))
-    info = resolve_variable_concept_check (t);
+    check = resolve_variable_concept_check (t);
   else
     {
       /* Check that we didn't refer to a function concept like a variable.  */
@@ -821,9 +731,9 @@ normalize_template_id_expression (tree t)
 	}
       return build_nt (PRED_CONSTR, t);
     }
-  gcc_assert (info);
+  gcc_assert (check);
 
-  if (info == error_mark_node)
+  if (check == error_mark_node)
     {
       /* We get this when the template arguments don't match
 	 the variable concept. */
@@ -831,22 +741,22 @@ normalize_template_id_expression (tree t)
       return error_mark_node;
     }
 
-  tree decl = TREE_VALUE (info);
-  tree args = TREE_PURPOSE (info);
-  return build_nt (CHECK_CONSTR, decl, args);
+   gcc_assert (false);
+  // tree decl = TREE_VALUE (info);
+  // tree args = TREE_PURPOSE (info);
+  // return build_nt (CHECK_CONSTR, decl, args);
 }
 
 /* For a call expression to a function concept, returns a check
    constraint. Otherwise, returns a predicate constraint. */
 
 tree
-normalize_call_expression (tree t)
+normalize_function_concept_check (tree t, tree args, subst_info info)
 {
   /* Try to resolve this function call as a concept.  If not, then
      it can be returned as a predicate constraint.  */
   tree check = resolve_constraint_check (t);
-  if (!check)
-    return build_nt (PRED_CONSTR, t);
+  gcc_assert (check);
   if (check == error_mark_node)
     {
       /* TODO: Improve diagnostics. We could report why the reference
@@ -855,84 +765,26 @@ normalize_call_expression (tree t)
       return error_mark_node;
     }
 
+  tree subst = TREE_PURPOSE (check);
   tree fn = TREE_VALUE (check);
-  tree args = TREE_PURPOSE (check);
-  return build_nt (CHECK_CONSTR, fn, args);
+  tree def = get_concept_definition (fn);
+  
+  /* FIXME: Use args as the new parameter mapping.  */
+  // return normalize_expression (def, subst, info);
+  gcc_assert (false);
 }
-
-/* If T is a call to an overloaded && or || operator, diagnose that
-   as a non-SFINAEable error.  Returns true if an error is emitted.
-
-   TODO: It would be better to diagnose this at the point of definition,
-   if possible. Perhaps we should immediately do a first-pass normalization
-   of a concept definition to catch obvious non-dependent errors like
-   this.  */
-
-bool
-check_for_logical_overloads (tree t)
-{
-  if (TREE_CODE (t) != CALL_EXPR)
-    return false;
-
-  tree fn = CALL_EXPR_FN (t);
-
-  /* For member calls, try extracting the function from the
-     component ref.  */
-  if (TREE_CODE (fn) == COMPONENT_REF)
-    {
-      fn = TREE_OPERAND (fn, 1);
-      if (TREE_CODE (fn) == BASELINK)
-	fn = BASELINK_FUNCTIONS (fn);
-    }
-
-  if (TREE_CODE (fn) != FUNCTION_DECL)
-    return false;
-
-  if (DECL_OVERLOADED_OPERATOR_P (fn))
-    {
-      location_t loc = cp_expr_loc_or_loc (t, input_location);
-      error_at (loc, "constraint %qE, uses overloaded operator", t);
-      return true;
-    }
-
-  return false;
-}
-
-/* The normal form of an atom depends on the expression. The normal
-   form of a function call to a function concept is a check constraint
-   for that concept. The normal form of a reference to a variable
-   concept is a check constraint for that concept. Otherwise, the
-   constraint is a predicate constraint.  */
 
 tree
-normalize_atom (tree t)
+normalize_concept_check (tree t, tree args, subst_info info)
 {
-  /* We can get constraints pushed down through pack expansions, so
-     just return them. */
-  if (constraint_p (t))
-    return t;
-
-  tree type = TREE_TYPE (t);
-  if (!type || type_unknown_p (t) || TREE_CODE (type) == TEMPLATE_TYPE_PARM)
-    ;
-  else if (!dependent_type_p (type))
-    {
-      if (check_for_logical_overloads (t))
-	return error_mark_node;
-
-      type = cv_unqualified (type);
-      if (!same_type_p (type, boolean_type_node))
-	{
-	  error ("atomic constraint %q+E does not have type %<bool%>", t);
-	  return error_mark_node;
-	}
-    }
-
-  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
-    return normalize_template_id_expression (t);
-  if (TREE_CODE (t) == CALL_EXPR)
-    return normalize_call_expression (t);
-  return build_nt (PRED_CONSTR, t);
+  // verbatim ("CHECK %qE", t);
+  tree tmpl = TREE_OPERAND (t, 0);
+  tree parms = TREE_VALUE (DECL_TEMPLATE_PARMS (tmpl));
+  tree subst = coerce_template_parms (parms, TREE_OPERAND (t, 1), tmpl);
+  if (subst == error_mark_node)
+    return error_mark_node;
+  tree def = get_concept_definition (DECL_TEMPLATE_RESULT (tmpl));
+  return normalize_expression (def, subst, info);
 }
 
 /* Push down the pack expansion EXP into the leaves of the constraint PAT.  */
@@ -966,76 +818,73 @@ push_down_pack_expansion (tree exp, tree pat)
    leaves of the constraint so that partial ordering will work.  */
 
 tree
-normalize_pack_expansion (tree t)
+normalize_pack_expansion (tree t, tree args, subst_info info)
 {
-  tree pat = normalize_expression (PACK_EXPANSION_PATTERN (t));
+  tree pat = normalize_expression (PACK_EXPANSION_PATTERN (t), args, info);
   return push_down_pack_expansion (t, pat);
 }
 
-/* Transform an expression into a constraint.  */
+/* Build associate each template parameter in PARMS with the
+   template argument that will be used in its place.  */
 
-tree
-normalize_any_expression (tree t)
+static tree
+map_arguments (tree parms, tree args)
 {
-  switch (TREE_CODE (t))
+  for (tree p = parms; p; p = TREE_CHAIN (p))
     {
-    case TRUTH_ANDIF_EXPR:
-      return normalize_logical_operation (t, CONJ_CONSTR);
-
-    case TRUTH_ORIF_EXPR:
-      return normalize_logical_operation (t, DISJ_CONSTR);
-
-    case REQUIRES_EXPR:
-      if (cxx_dialect >= cxx2a)
-	return normalize_atom (t);
-      else
-	return normalize_requires_expression (t);
-
-    case BIND_EXPR:
-      return normalize_expression (BIND_EXPR_BODY (t));
-
-    case EXPR_PACK_EXPANSION:
-      return normalize_pack_expansion (t);
-
-    default:
-      /* All other constraints are atomic. */
-      return normalize_atom (t);
+      int level;
+      int index;
+      template_parm_level_and_index (TREE_VALUE (p), &level, &index);
+      TREE_PURPOSE (p) = TMPL_ARG (args, level, index);
     }
+  return parms;
 }
 
-/* Transform a statement into an expression.  */
-tree
-normalize_any_statement (tree t)
+/* Build the parameter mapping for EXPR using ARGS.  */
+
+static tree
+build_parameter_mapping (tree expr, tree args)
 {
-  switch (TREE_CODE (t))
-    {
-    case RETURN_EXPR:
-      return normalize_expression (TREE_OPERAND (t, 0));
-    default:
-      gcc_unreachable ();
-    }
-  return error_mark_node;
+  tree parms = find_template_parameters (expr);
+  return map_arguments (parms, args);
 }
 
-/* Reduction rules for the declaration T.  */
+/* The normal form of an atom depends on the expression. The normal
+   form of a function call to a function concept is a check constraint
+   for that concept. The normal form of a reference to a variable
+   concept is a check constraint for that concept. Otherwise, the
+   constraint is a predicate constraint.  */
 
 tree
-normalize_any_declaration (tree t)
+normalize_atom (tree t, tree args, subst_info info)
 {
-  switch (TREE_CODE (t))
-    {
-    case VAR_DECL:
-      return normalize_atom (t);
-    default:
-      gcc_unreachable ();
-    }
-  return error_mark_node;
+  /* We can get constraints pushed down through pack expansions, so
+     just return them. */
+  if (constraint_p (t))
+    return t;
+
+  /* Concept checks are not atomic.  */
+  if (concept_check_p (t))
+    return normalize_concept_check (t, args, info);
+  if (variable_concept_p (t))
+    return normalize_variable_concept_check (t, args, info);
+  if (function_concept_check_p (t))
+    return normalize_function_concept_check (t, args, info);
+
+  /* Build the parameter mapping for the atom by a) finding the
+     template parameters involved in T, and b) finding and
+     associating the template arguments that would provide their
+     values in the current "substitution". This becomes the
+     "type" of the constraint.  */
+  tree map = build_parameter_mapping (t, args);
+
+  return build1 (PRED_CONSTR, map, t);  
 }
 
-/* Returns the normal form of a constraint expression. */
+/* Returns the normal form of an expression. */
 
 tree
-normalize_expression (tree t)
+normalize_expression (tree t, tree args, subst_info info)
 {
   if (!t)
     return NULL_TREE;
@@ -1043,129 +892,17 @@ normalize_expression (tree t)
   if (t == error_mark_node)
     return error_mark_node;
 
-  switch (TREE_CODE_CLASS (TREE_CODE (t)))
-    {
-    case tcc_unary:
-    case tcc_binary:
-    case tcc_expression:
-    case tcc_vl_exp:
-      return normalize_any_expression (t);
-
-    case tcc_statement:
-      return normalize_any_statement (t);
-
-    case tcc_declaration:
-      return normalize_any_declaration (t);
-
-    case tcc_exceptional:
-    case tcc_constant:
-    case tcc_reference:
-    case tcc_comparison:
-      /* These are all atomic predicate constraints. */
-      return normalize_atom (t);
-
-    default:
-      gcc_unreachable ();
-    }
-  return error_mark_node;
-}
-
-
-/*---------------------------------------------------------------------------
-			Constraint normalization
----------------------------------------------------------------------------*/
-
-tree normalize_constraint (tree);
-
-/* The normal form of the disjunction T0 /\ T1 is the conjunction
-   of the normal form of T0 and the normal form of T1.  */
-
-inline tree
-normalize_conjunction (tree t)
-{
-  tree t0 = normalize_constraint (TREE_OPERAND (t, 0));
-  tree t1 = normalize_constraint (TREE_OPERAND (t, 1));
-  return build_nt (CONJ_CONSTR, t0, t1);
-}
-
-/* The normal form of the disjunction T0 \/ T1 is the disjunction
-   of the normal form of T0 and the normal form of T1.  */
-
-inline tree
-normalize_disjunction (tree t)
-{
-  tree t0 = normalize_constraint (TREE_OPERAND (t, 0));
-  tree t1 = normalize_constraint (TREE_OPERAND (t, 1));
-  return build_nt (DISJ_CONSTR, t0, t1);
-}
-
-/* A predicate constraint is normalized in two stages.  First all
-   references specializations of concepts are replaced by their
-   substituted definitions.  Then, the resulting expression is
-   transformed into a constraint by transforming && expressions
-   into conjunctions and || into disjunctions.  */
-
-tree
-normalize_predicate_constraint (tree t)
-{
-  ++processing_template_decl;
-  tree expr = PRED_CONSTR_EXPR (t);
-  tree constr = normalize_expression (expr);
-  --processing_template_decl;
-  return constr;
-}
-
-/* The normal form of a parameterized constraint is the normal
-   form of its operand.  */
-
-tree
-normalize_parameterized_constraint (tree t)
-{
-  tree parms = PARM_CONSTR_PARMS (t);
-  tree operand = normalize_constraint (PARM_CONSTR_OPERAND (t));
-  return build_nt (PARM_CONSTR, parms, operand);
-}
-
-/* Normalize the constraint T by reducing it so that it is
-   comprised of only conjunctions and disjunctions of atomic
-   constraints.  */
-
-tree
-normalize_constraint (tree t)
-{
-  if (!t)
-    return NULL_TREE;
-
-  if (t == error_mark_node)
-    return t;
-
   switch (TREE_CODE (t))
     {
-      case CONJ_CONSTR:
-	return normalize_conjunction (t);
-
-      case DISJ_CONSTR:
-	return normalize_disjunction (t);
-
-      case PRED_CONSTR:
-	return normalize_predicate_constraint (t);
-
-      case PARM_CONSTR:
-	return normalize_parameterized_constraint (t);
-
-      case EXPR_CONSTR:
-      case TYPE_CONSTR:
-      case ICONV_CONSTR:
-      case DEDUCT_CONSTR:
-      case EXCEPT_CONSTR:
-	/* These constraints are defined to be atomic. */
-	return t;
-
-      default:
-	/* CONSTR was not a constraint. */
-	gcc_unreachable();
+    case TRUTH_ANDIF_EXPR:
+      return normalize_logical_operation (t, args, CONJ_CONSTR, info);
+    case TRUTH_ORIF_EXPR:
+      return normalize_logical_operation (t, args, DISJ_CONSTR, info);
+    case EXPR_PACK_EXPANSION:
+      return normalize_pack_expansion (t, args, info);
+    default:
+      return normalize_atom (t, args, info);
     }
-  return error_mark_node;
 }
 
 // -------------------------------------------------------------------------- //
@@ -1381,7 +1118,7 @@ finish_shorthand_constraint (tree decl, tree constr)
       TREE_TYPE (check) = boolean_type_node;
     }
 
-  return normalize_expression (check);
+  return check;
 }
 
 /* Returns a conjunction of shorthand requirements for the template
@@ -1523,8 +1260,7 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
 
   /* Associate the constraint. */
   tree check = build_concept_check (tmpl_decl, NULL_TREE, check_args);
-  tree constr = normalize_expression (check);
-  TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = constr;
+  TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = check;
 
   return parm_list;
 }
@@ -2433,13 +2169,6 @@ satisfy_constraint_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl)
   return boolean_false_node;
 }
 
-/* Information provided to substitution.  */
-struct subst_info
-{
-  tsubst_flags_t complain;
-  tree in_decl;
-};
-
 static tree cxx_satisfy_expression (tree, tree, subst_info info);
 
 /* Compute the satisfaction of a conjunction.  */
@@ -2517,17 +2246,6 @@ cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
     }
 #endif
   return boolean_false_node;
-}
-
-/* Returns true if this expression is a concept check: a template-id
-   whose template-name refers to a concept.  */
-
-static inline bool
-concept_check_p (tree expr)
-{
-  if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
-    return concept_definition_p (TREE_OPERAND (expr, 0));
-  return false;
 }
 
 static void cxx_diagnose_atom (tree, tree, tree);
@@ -2989,18 +2707,32 @@ strictly_subsumes (tree a, tree b)
    That is, which declaration's constraints subsume but are not subsumed
    by the other's?
 
-   Returns 1 if A is more constrained than B, -1 if B is more constrained
-   than A, and 0 otherwise. */
+   Returns 1 if D1 is more constrained than D2, -1 if D2 is more constrained
+   than D1, and 0 otherwise. */
 
 int
 more_constrained (tree d1, tree d2)
 {
-  tree c1 = get_constraints (d1);
-  tree c2 = get_constraints (d2);
+  tree tmpl1 = DECL_TI_TEMPLATE (d1);
+  tree args1 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl1));
+  tree c1 = get_constraints (tmpl1);
+  tree e1 = c1 ? CI_ASSOCIATED_CONSTRAINTS (c1) : NULL_TREE;
+
+  tree tmpl2 = DECL_TI_TEMPLATE (d2);
+  tree args2 = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (tmpl2));
+  tree c2 = get_constraints (tmpl2);
+  tree e2 = c2 ? CI_ASSOCIATED_CONSTRAINTS (c2) : NULL_TREE;
+
+  /* Substitution errors during normalization are fatal.  */
+  subst_info info1 { tf_warning_or_error, tmpl1 };
+  tree n1 = normalize_expression (e1, args1, info1);
+  subst_info info2 { tf_warning_or_error, tmpl2 };
+  tree n2 = normalize_expression (e2, args2, info2);
+
   int winner = 0;
-  if (subsumes_constraints (c1, c2))
+  if (subsumes (n1, n2))
     ++winner;
-  if (subsumes_constraints (c2, c1))
+  if (subsumes (n2, n1))
     --winner;
   return winner;
 }
@@ -3257,7 +2989,6 @@ diagnose_check_constraint (location_t loc, tree orig, tree cur, tree args)
     }
 
   orig = get_concept_definition (CHECK_CONSTR_CONCEPT (orig));
-  orig = normalize_expression (orig);
 
   location_t dloc = DECL_SOURCE_LOCATION (decl);
   inform (dloc, "within %qS", sub);

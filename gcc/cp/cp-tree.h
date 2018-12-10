@@ -1452,18 +1452,18 @@ check_constraint_info (tree t)
 // a requirements clause after the template parameter list, or constraints
 // through a constrained-type-specifier.
 #define CI_TEMPLATE_REQS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->template_reqs
+  check_constraint_info (check_nonnull (NODE))->template_reqs
 
 // Access the expression describing the trailing constraints. This is non-null
 // for any implicit instantiation of a constrained declaration. For a
 // templated declaration it is non-null only when a trailing requires-clause
 // was specified.
 #define CI_DECLARATOR_REQS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->declarator_reqs
+  check_constraint_info (check_nonnull (NODE))->declarator_reqs
 
 // The computed associated constraint expression for a declaration.
 #define CI_ASSOCIATED_CONSTRAINTS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->associated_constr
+  check_constraint_info (check_nonnull (NODE))->associated_constr
 
 // Access the logical constraints on the template parameters introduced
 // at a given template parameter list level indicated by NODE.
@@ -6090,7 +6090,8 @@ variable_template_p (tree t)
 }
 
 /* True iff T is a variable concept definition. That is, T is
-   a variable template declared with the concept specifier. */
+   a variable template declared with the concept specifier.  */
+
 inline bool
 variable_concept_p (tree t)
 {
@@ -6102,7 +6103,8 @@ variable_concept_p (tree t)
 }
 
 /* True iff T is a concept definition. That is, T is a variable or function
-   template declared with the concept specifier. */
+   template declared with the concept specifier.  */
+
 inline bool
 concept_template_p (tree t)
 {
@@ -6115,12 +6117,23 @@ concept_template_p (tree t)
 
 /* True iff T is a C++2A-style concept definition or a template that
    defines the concept.  */
+
 inline bool
 concept_definition_p (const_tree t)
 {
   if (TREE_CODE (t) == TEMPLATE_DECL)
     t = DECL_TEMPLATE_RESULT (t);
   return TREE_CODE (t) == CONCEPT_DECL;
+}
+
+/* True if t is a template-id that refers to concept definition.  */
+
+inline bool
+concept_check_p (const_tree t)
+{
+  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
+    return concept_definition_p (TREE_OPERAND (t, 0));
+  return false;
 }
 
 /* A parameter list indicating for a function with no parameters,
@@ -6750,6 +6763,7 @@ extern bool check_default_tmpl_args             (tree, tree, bool, bool, int);
 extern tree push_template_decl			(tree);
 extern tree push_template_decl_real		(tree, bool);
 extern tree add_inherited_template_parms	(tree, tree);
+extern void template_parm_level_and_index	(tree, int*, int*);
 extern bool redeclare_class_template		(tree, tree, tree);
 extern tree lookup_template_class		(tree, tree, tree, tree,
 						 int, tsubst_flags_t);
@@ -7646,7 +7660,6 @@ extern tree tsubst_requires_expr                (tree, tree, tsubst_flags_t, tre
 extern tree tsubst_constraint                   (tree, tree, tsubst_flags_t, tree);
 extern tree tsubst_constraint_info              (tree, tree, tsubst_flags_t, tree);
 extern bool function_concept_check_p            (tree);
-extern tree normalize_expression                (tree);
 extern tree expand_concept                      (tree, tree);
 extern bool expanding_concept                   ();
 extern tree evaluate_constraints                (tree, tree);
@@ -7665,6 +7678,7 @@ extern tree get_concept_expansion               (tree, tree);
 extern tree save_concept_expansion              (tree, tree, tree);
 extern bool* lookup_subsumption_result          (tree, tree);
 extern bool save_subsumption_result             (tree, tree, bool);
+extern tree find_template_parameters		(tree);
 
 extern bool equivalent_constraints              (tree, tree);
 extern bool equivalently_constrained            (tree, tree);

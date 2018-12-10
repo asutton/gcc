@@ -184,7 +184,6 @@ static int can_complete_type_without_circularity (tree);
 static tree get_bindings (tree, tree, tree, bool);
 static int template_decl_level (tree);
 static int check_cv_quals_for_unify (int, tree, tree);
-static void template_parm_level_and_index (tree, int*, int*);
 static int unify_pack_expansion (tree, tree, tree,
 				 tree, unification_kind_t, bool, bool);
 static tree copy_template_args (tree);
@@ -9951,6 +9950,21 @@ for_each_template_parm_r (tree *tp, int *walk_subtrees, void *d)
 	return error_mark_node;
       break;
 
+    case REQUIRES_EXPR:
+      {
+	if (!fn)
+	  return error_mark_node;
+
+      	/* Recursively walk the type of each constraint variable.  */
+	tree p = TREE_OPERAND (t, 0);
+	while (p)
+	  {
+	    WALK_SUBTREE (TREE_TYPE (p));
+	    p = TREE_CHAIN (p);
+	  }
+      }
+      break;
+    
     default:
       break;
     }
@@ -10012,6 +10026,41 @@ for_each_template_parm (tree t, tree_fn_t fn, void* data,
     }
 
   return result;
+}
+
+/* A simplified interface for the function above.  */
+
+static tree
+for_each_template_parm (tree t, tree_fn_t fn, void* data)
+{
+  return for_each_template_parm (t, fn, data, nullptr, true, nullptr);
+}
+
+/* Appends the declaration of T to the list in DATA.  */
+
+static int
+keep_template_parm (tree t, void* data)
+{
+  tree* parms = (tree*)data;
+  *parms = tree_cons (NULL_TREE, t, *parms);
+
+  // tree decl;
+  // if (TREE_CODE (t) == TEMPLATE_PARM_INDEX)
+  //   decl = TEMPLATE_PARM_DECL (t);
+  // else 
+  //   decl = TEMPLATE_TYPE_DECL (t);
+  // *parms = tree_cons (NULL_TREE, decl, *parms);
+  return 1;
+}
+
+/* Returns a list of unique template parameters found within T.  */
+
+tree
+find_template_parameters (tree t)
+{
+  tree parms = NULL_TREE;
+  for_each_template_parm (t, keep_template_parm, &parms);
+  return parms;
 }
 
 /* Returns true if T depends on any template parameter.  */
@@ -13044,11 +13093,11 @@ tsubst_function_decl (tree t, tree args, tsubst_flags_t complain,
       && !grok_op_properties (r, /*complain=*/false))
     return error_mark_node;
 
-  /* When instantiating a constrained member, the constraints
-     are propagated to member unchanged.  */
+  /* Associate the constraints directly with the instantiation. We
+     don't substitute through the constraints; that's only done when
+     they are checked.  */
   if (tree ci = get_constraints (t))
-    if (member)
-      set_constraints (r, ci);
+    set_constraints (r, ci);
 
   /* Set up the DECL_TEMPLATE_INFO for R.  There's no need to do
      this in the special friend case mentioned above where
@@ -22917,10 +22966,19 @@ more_specialized_fn (tree pat1, tree pat2, int len)
      constrained template.  */
   if (!lose1 && !lose2)
     {
+      int winner = more_constrained (decl1, decl2);
+      if (winner > 0)
+      	lose2 = true;
+      else if (winner < 0)
+      	lose1 = true;
+      
+      /*
+      lose2 += winner;
       tree c1 = get_constraints (DECL_TEMPLATE_RESULT (pat1));
       tree c2 = get_constraints (DECL_TEMPLATE_RESULT (pat2));
       lose1 = !subsumes_constraints (c1, c2);
       lose2 = !subsumes_constraints (c2, c1);
+      */
     }
 
   /* All things being equal, if the next argument is a pack expansion
@@ -26455,8 +26513,7 @@ make_constrained_auto (tree con, tree args)
   tree expr = VAR_P (con) ? tmpl : ovl_make (tmpl);
   expr = build_concept_check (expr, type, args);
 
-  tree constr = normalize_expression (expr);
-  PLACEHOLDER_TYPE_CONSTRAINTS (type) = constr;
+  PLACEHOLDER_TYPE_CONSTRAINTS (type) = expr;
 
   /* Our canonical type depends on the constraint.  */
   TYPE_CANONICAL (type) = canonical_type_parameter (type);
@@ -27722,6 +27779,7 @@ set_constraints (tree t, tree ci)
   constr_entry* entry = ggc_alloc<constr_entry> ();
   *entry = elt;
   *slot = entry;
+  gcc_assert (get_constraints (t) == ci);
 }
 
 /* Remove the associated constraints of the declaration T.  */

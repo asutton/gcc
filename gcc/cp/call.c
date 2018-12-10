@@ -10562,12 +10562,18 @@ joust (struct z_candidate *cand1, struct z_candidate *cand2, bool warn,
 
   // C++ Concepts
   // or, if not that, F1 is more constrained than F2.
+
+  /* FIXME: For function templates, this is being called a
+     second time. The first time is during the determination
+     of "more specialized". This should not be called twice.  */
+  #if 0
   if (flag_concepts && DECL_P (cand1->fn) && DECL_P (cand2->fn))
     {
       winner = more_constrained (cand1->fn, cand2->fn);
       if (winner)
 	return winner;
     }
+  #endif
 
   /* F1 is generated from a deduction-guide (13.3.1.8) and F2 is not */
   if (deduction_guide_p (cand1->fn))
