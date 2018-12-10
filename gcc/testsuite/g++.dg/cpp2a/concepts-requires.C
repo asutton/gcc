@@ -19,8 +19,7 @@ void g(int (*)() requires true);      // { dg-error "parameter|non-function" }
 auto* p = new (void(*)(char) requires true); // { dg-error "type-id" }
 void f4(auto a) requires Class<decltype(a)> { }
 
-// FIXME: The error should be a note.
-void f5(auto a) requires requires (decltype(a) x) { -x; } { } // { dg-error "wrong type argument" }
+void f5(auto a) requires requires (decltype(a) x) { -x; } { } 
 
 void driver_1() {
   struct S { } s;

@@ -1,5 +1,10 @@
 2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Remove old constraint-based diagnostics.
+	* g++.dg/cpp2a/concepts-requires.C: Update diagnostics.
+
+2018-08-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Revisit diagnostics.
 	* g++.dg/cpp2a/concepts-class.C: Update diagnostics.
 	* g++.dg/cpp2a/concepts-fn.C: Update diagnostics.
