@@ -18,3 +18,16 @@ struct A { };
 
 A<int> a;
 
+// req19.C
+
+struct B
+{
+  template <class T> 
+  void f(T t) requires requires (T tt) { tt; }
+  { }
+};
+
+int main()
+{
+  B().f(42);
+}
