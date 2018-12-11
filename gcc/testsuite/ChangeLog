@@ -1,3 +1,11 @@
+2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Updating error diagnostics.
+	* g++.dg/cpp2a/concepts-alias.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts-class.C: Likewise.
+	* g++.dg/cpp2a/concepts-requires1.C: Likewise.
+	* g++.dg/cpp2a/concepts-requires2.C: Likewise.
+
 2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Migrating tests.

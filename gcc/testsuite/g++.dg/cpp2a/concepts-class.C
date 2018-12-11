@@ -18,8 +18,8 @@ template<typename T> requires true struct ok { };
 template<typename T> requires false struct err { };
 
 ok<int> ok1;
-err<int> err1; // { dg-error "invalid use of class template" }
-err<int>* err2; // { dg-error "invalid use of class template" }
+err<int> err1; // { dg-error "template constraint failure" }
+err<int>* err2; // { dg-error "template constraint failure" }
 
 // Redeclarations
 template<typename T> 

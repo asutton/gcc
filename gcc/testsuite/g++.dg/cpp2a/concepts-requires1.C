@@ -38,7 +38,7 @@ template<bool B> requires B struct S0; // OK
 // Diagnostics are required only during satisfaction. We could test earlier,
 // but that causes multiple errors during parsing.
 template<int N> requires N struct S1 { };
-S1<1> x0; // { dg-error "invalid use of class template|does not have type" }
+S1<1> x0; // { dg-error "template constraint failure|does not have type" }
 
 // We want to diagnose the syntax error (N == 0 must be in parens). Don't
 // diagnose constraint errors during parsing.
@@ -47,9 +47,9 @@ template<int N> requires N == 0 struct S2 { }; // { dg-error "expected unqualifi
 template<int N> requires (N == 0) struct S3 { }; // OK
 
 template<typename T, T X> requires X struct S4 { }; // OK
-S4<int, 0> x1;      // { dg-error "invalid use of class template|does not have type" }
+S4<int, 0> x1;      // { dg-error "template constraint failure|does not have type" }
 S4<bool, true> x2; // OK
-S4<bool, false> x3; // { dg-error "invalid use of class template" }
+S4<bool, false> x3; // { dg-error "template constraint failure" }
 
 
 // req11.C

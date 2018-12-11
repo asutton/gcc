@@ -18,6 +18,6 @@ using Y = X<T>;
 struct S { };
 
 X<S> x1; // OK
-X<int> x2; // { dg-error "invalid use of alias template" }
+X<int> x2; // { dg-error "template constraint failure" }
 Y<int> y1; // { dg-error "" "" { xfail *-*-* } }
 

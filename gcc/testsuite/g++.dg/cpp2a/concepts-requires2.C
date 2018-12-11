@@ -42,8 +42,8 @@ void h2(T);
 
 void driver_3()
 {
-  h1(0); // { dg-error "cannot call" } does not have type bool
-  h2(0); // { dg-error "cannot call" } does not have type bool
+  h1(0); // { dg-error "cannot call" }
+  h2(0); // { dg-error "cannot call" } 
 }
 
 // req7.C
@@ -70,6 +70,6 @@ template<typename T>
   requires (dependent_false<T>{})
 struct S6 { };
 
-S5<int> x5; // { dg-error "invalid use of class template" } does not have type bool
-S6<int> x6; // { dg-error "invalid use of class template" } does not have type bool
+S5<int> x5; // { dg-error "template constraint failure" }
+S6<int> x6; // { dg-error "template constraint failure" }
 
