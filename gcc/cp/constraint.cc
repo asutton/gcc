@@ -2732,14 +2732,30 @@ get_normalized_constraints_from_info (tree ci, tree args, tree in_decl)
 static tree
 get_normalized_constraints_from_decl (tree d)
 {
-  tree tmpl = TREE_CODE (d) == TEMPLATE_DECL ? d : DECL_TI_TEMPLATE (d);
-  tree decl = DECL_TEMPLATE_RESULT (tmpl);
+  tree tmpl;
+  tree decl;
+  if (TREE_CODE (d) == TEMPLATE_DECL)
+    {
+      tmpl = d;
+      decl = DECL_TEMPLATE_RESULT (tmpl);
+    }
+  else
+    {
+      if (tree ti = DECL_TEMPLATE_INFO (d))
+	tmpl = TI_TEMPLATE (ti);
+      else
+	tmpl = NULL_TREE;
+      decl = d;
+    }
+
   tree args;
   if (TREE_CODE (decl) == TYPE_DECL)
     args = CLASSTYPE_TI_ARGS (TREE_TYPE (decl));
   else
-    args = DECL_TI_ARGS (decl);
-  tree ci = get_constraints (tmpl);
+    args = tmpl ? DECL_TI_ARGS (decl) : NULL_TREE;
+  
+  tree ci = get_constraints (decl);
+  
   return get_normalized_constraints_from_info (ci, args, tmpl);
 }
 
