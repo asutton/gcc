@@ -16278,7 +16278,7 @@ cp_parser_template_id (cp_parser *parser,
     = make_location (token->location, token->location, finish_loc);
 
   /* Check for concepts autos where they don't belong.  We could
-     identify types in some cases of idnetifier TEMPL, looking ahead
+     identify types in some cases of identifier TEMPL, looking ahead
      for a CPP_SCOPE, but that would buy us nothing: we accept auto in
      types.  We reject them in functions, but if what we have is an
      identifier, even with none_type we can't conclude it's NOT a
@@ -16304,17 +16304,33 @@ cp_parser_template_id (cp_parser *parser,
       template_id
 	= finish_template_type (templ, arguments, entering_scope);
     }
-  /* The template-id could name a concept.  */
   else if (concept_definition_p (templ))
     {
-      tree type = boolean_type_node;
-      template_id = build2 (TEMPLATE_ID_EXPR, type, templ, arguments);
-      return template_id;
+      /* The template-id could name a concept. Note that this can
+         fail. For example:
+
+         template<typename T> concept C = ...;
+         template<typename T> requires C<T> void f(T);
+         			       ~~~~
+	  We're trying to form a partial-concept-id from the
+	  expression C<T>, which is invalid. This tries to form
+	  the constraint C<?, T>, which won't work.
+
+	  If that fails, this could still be a valid concept-id. */
+      template_id = cp_parser_maybe_partial_concept_id (parser, 
+							templ, 
+							arguments);
+      if (!template_id)
+      	template_id = build_concept_check (templ, 
+      					   arguments, 
+      					   tf_warning_or_error);
     }
   /* A template-like identifier may be a partial concept id.  */
   else if (flag_concepts
            && (template_id = (cp_parser_maybe_partial_concept_id
 			      (parser, templ, arguments))))
+    /* FIXME: This probably does the wrong thing for function and
+       variable concepts.  */
     return template_id;
   else if (variable_template_p (templ))
     {
@@ -17904,11 +17920,10 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
   if (TREE_CODE (decl) != OVERLOAD && TREE_CODE (decl) != TEMPLATE_DECL)
     return NULL_TREE;
 
-  /* Try to build a call expression that evaluates the
-     concept. This can fail if the overload set refers
-     only to non-templates.  */
+  /* Try to build a call expression that evaluates the concept. 
+     Fail quietly if we get errors.  */
   tree placeholder = build_nt (WILDCARD_DECL);
-  tree check = build_concept_check (decl, placeholder, args);
+  tree check = build_concept_check (decl, placeholder, args, tf_none);
   if (check == error_mark_node)
     return NULL_TREE;
 
@@ -17955,9 +17970,8 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
       return synthesize_implicit_template_parm (parser, parm);
     }
 
-  /* Otherwise, we're in a context where the constrained
-     type name is deduced and the constraint applies
-     after deduction.
+  /* Otherwise, we're in a context where the constrained type name is 
+     deduced and the constraint applies after deduction.
 
      FIXME: Warn if auto is not present using some flag for
      concepts.  */
@@ -21581,7 +21595,7 @@ cp_parser_type_id_1 (cp_parser* parser, bool is_template_arg,
 	    return error_mark_node;
 	  }
       }
-  
+
   return groktypename (&type_specifier_seq, abstract_declarator,
 		       is_template_arg);
 }

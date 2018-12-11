@@ -386,10 +386,9 @@ resolve_constraint_check (tree call)
 tree
 resolve_concept_definition_check (tree id)
 {
+  gcc_assert (concept_definition_p (TREE_OPERAND (id, 0)));
   tree tmpl = TREE_OPERAND (id, 0);
   tree args = TREE_OPERAND (id, 1);
-  gcc_assert (concept_definition_p (tmpl));
-
   tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
   ++processing_template_decl;
   tree result = coerce_template_parms (parms, args, tmpl, tf_error);
@@ -462,12 +461,12 @@ deduce_constrained_parameter (tree expr, tree& check, tree& proto)
 {
   tree info = NULL_TREE;
   if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
-  {
-    if (concept_definition_p (TREE_OPERAND (expr, 0)))
-      info = resolve_concept_check (expr);
-    else
-      info = resolve_variable_concept_check (expr);  	
-  }
+    {
+      if (concept_definition_p (TREE_OPERAND (expr, 0)))
+	info = resolve_concept_check (expr);
+      else
+	info = resolve_variable_concept_check (expr);  	
+    }
   else if (TREE_CODE (expr) == CALL_EXPR)
     info = resolve_constraint_check (expr);
   else
@@ -482,6 +481,7 @@ deduce_constrained_parameter (tree expr, tree& check, tree& proto)
       proto = TREE_TYPE (arg);
       return true;
     }
+  
   check = proto = NULL_TREE;
   return false;
 }
@@ -1066,24 +1066,43 @@ build_concept_check_arguments (tree arg, tree rest)
   return args;
 }
 
+tree
+build_real_concept_check(tree tmpl, tree args, tsubst_flags_t complain)
+{
+  gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
+  gcc_assert (concept_definition_p (tmpl));
+  tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
+  args = coerce_template_parms (parms, args, tmpl, complain);
+  if (args == error_mark_node)
+    return error_mark_node;
+  return build2 (TEMPLATE_ID_EXPR, boolean_type_node, tmpl, args);
+}
+
 } // namespace
+
+/* Construct an expression that checks TARGET using ARGS.  */
+tree
+build_concept_check (tree target, tree args, tsubst_flags_t complain)
+{
+  return build_concept_check (target, NULL_TREE, args, complain);
+}
 
 /* Construct an expression that checks the concept given by
    TARGET. The TARGET must be:
 
-   - a concept definition (concept_definition_p is true)
+   - a concept (concept_definition_p is true)
    - an OVERLOAD referring to one or more function concepts
    - a BASELINK referring to an overload set of the above, or
-   - a TEMPLTATE_DECL referring to a variable concept.
+   - a TEMPLATE_DECL referring to a variable concept.
 
    ARG and REST are the explicit template arguments for the
    eventual concept check. */
 tree
-build_concept_check (tree target, tree arg, tree rest)
+build_concept_check (tree target, tree arg, tree rest, tsubst_flags_t complain)
 {
   tree args = build_concept_check_arguments (arg, rest);
   if (concept_definition_p (target))
-    return build2 (TEMPLATE_ID_EXPR, boolean_type_node, target, args);
+    return build_real_concept_check (target, args, complain);
   else if (variable_template_p (target))
     return build_variable_check (lookup_template_variable (target, args));
   else
@@ -1153,7 +1172,7 @@ finish_shorthand_constraint (tree decl, tree constr)
   tree check = tmpl;
   if (TREE_CODE (con) == FUNCTION_DECL)
     check = ovl_make (tmpl);
-  check = build_concept_check (check, arg, args);
+  check = build_concept_check (check, arg, args, tf_warning_or_error);
 
   /* Make the check a pack expansion if needed.
 
@@ -1264,7 +1283,7 @@ tree
 finish_template_introduction (tree tmpl_decl, tree intro_list)
 {
   /* Deduce the concept check.  */
-  tree expr = build_concept_check (tmpl_decl, NULL_TREE, intro_list);
+  tree expr = build_concept_check (tmpl_decl, intro_list, tf_warning_or_error);
   if (expr == error_mark_node)
     return NULL_TREE;
 
@@ -1301,8 +1320,10 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
   for (; n < TREE_VEC_LENGTH (parms); ++n)
     TREE_VEC_ELT (check_args, n) = TREE_VEC_ELT (parms, n);
 
-  /* Associate the constraint. */
-  tree check = build_concept_check (tmpl_decl, NULL_TREE, check_args);
+  /* Associate the constraint.  */
+  tree check = build_concept_check (tmpl_decl, 
+  				    check_args, 
+  				    tf_warning_or_error);
   TEMPLATE_PARMS_CONSTRAINTS (current_template_parms) = check;
 
   return parm_list;
@@ -1316,6 +1337,13 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
 void
 placeholder_extract_concept_and_args (tree t, tree &tmpl, tree &args)
 {
+  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
+    {
+      tmpl = TREE_OPERAND (t, 0);
+      args = TREE_OPERAND (t, 1);
+      return;
+    }
+
   if (TREE_CODE (t) == TYPE_DECL)
     {
       /* A constrained parameter.  Build a constraint check
@@ -1326,20 +1354,10 @@ placeholder_extract_concept_and_args (tree t, tree &tmpl, tree &args)
       placeholder_extract_concept_and_args (check, tmpl, args);
       return;
     }
-
-  if (TREE_CODE (t) == CHECK_CONSTR)
-    {
-      tree decl = CHECK_CONSTR_CONCEPT (t);
-      tmpl = DECL_TI_TEMPLATE (decl);
-      args = CHECK_CONSTR_ARGS (t);
-      return;
-    }
-
-    gcc_unreachable ();
 }
 
 /* Returns true iff the placeholders C1 and C2 are equivalent.  C1
-   and C2 can be either CHECK_CONSTR or TEMPLATE_TYPE_PARM.  */
+   and C2 can be either TEMPLATE_TYPE_PARM or template-ids.  */
 
 bool
 equivalent_placeholder_constraints (tree c1, tree c2)
@@ -1669,15 +1687,21 @@ static bool
 type_deducible_p (tree expr, tree type, tree placeholder, tree args, 
                   tsubst_flags_t complain, tree in_decl)
 {
-  tree constr = PLACEHOLDER_TYPE_CONSTRAINTS (placeholder);
-  tree type_canonical = TYPE_CANONICAL (placeholder);
+  /* Replace the constraints with the instantiated constraints.  */
+  tree saved_constr = PLACEHOLDER_TYPE_CONSTRAINTS (placeholder);
   PLACEHOLDER_TYPE_CONSTRAINTS (placeholder)
-    = tsubst_constraint (constr, args, complain | tf_partial, in_decl);
+    = tsubst_expr (saved_constr, args, complain | tf_partial, in_decl, false);
+
+  /* Unlink the canonical type.  */
+  tree saved_type = TYPE_CANONICAL (placeholder);
   TYPE_CANONICAL (placeholder) = NULL_TREE;
+
   tree deduced_type = do_auto_deduction (type, expr, placeholder,
                                          complain, adc_requirement);
-  PLACEHOLDER_TYPE_CONSTRAINTS (placeholder) = constr;
-  TYPE_CANONICAL (placeholder) = type_canonical;
+
+  PLACEHOLDER_TYPE_CONSTRAINTS (placeholder) = saved_constr;
+  TYPE_CANONICAL (placeholder) = saved_type;
+  
   if (deduced_type == error_mark_node)
     return false;
   return true;
@@ -1713,7 +1737,7 @@ tsubst_compound_requirement (tree t, tree args,
 {
   tree t0 = TREE_OPERAND (t, 0);
   tree t1 = TREE_OPERAND (t, 1);
-  
+
   tree expr = tsubst_expr (t0, args, complain, in_decl, false);
   if (expr == error_mark_node)
     return error_mark_node;
@@ -2259,7 +2283,7 @@ cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
 
   gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
   tree def = DECL_INITIAL (DECL_TEMPLATE_RESULT (tmpl));
-  
+
   info.in_decl = tmpl;
   tree result = cxx_satisfy_expression (def, subst, info);
   if (result == boolean_true_node)
@@ -2845,9 +2869,7 @@ diagnose_check (tree expr, tree args, tree in_decl)
 
   /* Instantiate the concept definition...  */
   tree def = get_concept_definition (tmpl);
-  ++processing_template_decl;
   expr = tsubst_expr (def, targs, tf_none, NULL_TREE, true);
-  --processing_template_decl;
   if (expr == error_mark_node)
     {
       inform (eloc, "in the expansion of concept %<%E %S%>", expr, subst);
@@ -3005,10 +3027,16 @@ diagnose_compound_requirement (tree req, tree args, tree in_decl)
       if (tree placeholder = type_uses_auto (type))
 	{
 	  if (!type_deducible_p (expr, type, placeholder, args, tf_none, in_decl))
-	    inform (loc, "cannot deduce %qT from %qE", type, expr);
+	    {
+	      inform (loc, "cannot deduce a type from %qE", expr);
+	      type_deducible_p (expr, type, placeholder, args, tf_warning_or_error, in_decl);
+	    }
 	}
       else if (!expression_convertible_p (expr, type, tf_none))
-      inform (loc, "cannot convert %qE to %qT", expr, type);
+      {
+	inform (loc, "cannot convert %qE to %qT", expr, type);
+	// expression_convertible_p (expr, type, tf_warning_or_error);
+      }
     }
 }
 
@@ -3043,7 +3071,6 @@ diagnose_requiremnt (tree req, tree args, tree in_decl)
     case NESTED_REQ:
       return diagnose_nested_requirement (req, args);
     default:
-       debug_tree (req);
        gcc_unreachable ();
     }
 }
@@ -3230,7 +3257,7 @@ diagnose_constraints (location_t loc, tree t, tree args)
   if (DECL_P (t))
     diagnose_declaration_constraints (loc, t, args);
   else
-    diagnose_constraint (t, t, args);
+    diagnose_constraint (t, args, NULL_TREE);
 
   /* Note the number of elided failures. */
   int n = undiagnosed_constraint_failures ();

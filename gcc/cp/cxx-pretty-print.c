@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cp-tree.h"
 #include "cxx-pretty-print.h"
 #include "tree-pretty-print.h"
+#include "print-tree.h"
 
 static void pp_cxx_unqualified_id (cxx_pretty_printer *, tree);
 static void pp_cxx_nested_name_specifier (cxx_pretty_printer *, tree);
@@ -232,9 +233,16 @@ pp_cxx_template_keyword_if_needed (cxx_pretty_printer *pp, tree scope, tree t)
 static void
 pp_cxx_nested_name_specifier (cxx_pretty_printer *pp, tree t)
 {
-  if (!SCOPE_FILE_SCOPE_P (t) && t != pp->enclosing_scope)
+  /* FIXME: When diagnosing references to concepts (especially as types?)
+     we end up adding too many '::' to the name. This is partially due
+     to the fact that pp->enclosing_namespace is null.  */
+  if (t == global_namespace)
     {
-      tree scope = get_containing_scope (t);
+      pp_cxx_colon_colon (pp);   
+    }
+  else if (!SCOPE_FILE_SCOPE_P (t) && t != pp->enclosing_scope)
+    {
+      tree scope = get_containing_scope (t);      
       pp_cxx_nested_name_specifier (pp, scope);
       pp_cxx_template_keyword_if_needed (pp, scope, t);
       pp_cxx_unqualified_id (pp, t);
@@ -2297,12 +2305,12 @@ pp_cxx_canonical_template_parameter (cxx_pretty_printer *pp, tree parm)
 void
 pp_cxx_constrained_type_spec (cxx_pretty_printer *pp, tree c)
 {
-  tree t, a;
   if (c == error_mark_node)
     {
       pp_cxx_ws_string(pp, "<unsatisfied-constrained-placeholder>");
       return;
     }
+  tree t, a;
   placeholder_extract_concept_and_args (c, t, a);
   pp->id_expression (t);
   if (TREE_VEC_LENGTH (a) > 1)

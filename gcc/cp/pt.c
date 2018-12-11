@@ -14593,6 +14593,9 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
 	r = NULL_TREE;
 
+	if (TREE_CODE (args) == TEMPLATE_ID_EXPR) {
+		inform (input_location, "FAILING");
+	}
 	gcc_assert (TREE_VEC_LENGTH (args) > 0);
 	template_parm_level_and_index (t, &level, &idx); 
 
@@ -14761,8 +14764,7 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 		  {
 		    /* Propagate constraints on placeholders.  */
 		    if (tree constr = PLACEHOLDER_TYPE_CONSTRAINTS (t))
-		      PLACEHOLDER_TYPE_CONSTRAINTS (r)
-			= tsubst_constraint (constr, args, complain, in_decl);
+		      PLACEHOLDER_TYPE_CONSTRAINTS (r) = constr;
 		    else if (tree pl = CLASS_PLACEHOLDER_TEMPLATE (t))
 		      {
 			pl = tsubst_copy (pl, args, complain, in_decl);
@@ -26652,8 +26654,10 @@ make_constrained_auto (tree con, tree args)
 
   /* Build the constraint. */
   tree tmpl = DECL_TI_TEMPLATE (con);
-  tree expr = VAR_P (con) ? tmpl : ovl_make (tmpl);
-  expr = build_concept_check (expr, type, args);
+  tree expr = tmpl;
+  if (TREE_CODE (con) == FUNCTION_DECL)
+    expr = ovl_make (tmpl);
+  expr = build_concept_check (expr, type, args, tf_warning_or_error);
 
   PLACEHOLDER_TYPE_CONSTRAINTS (type) = expr;
 
@@ -26678,15 +26682,15 @@ start_concept_definition (location_t loc, tree id)
   /* A concept-definition shall appear in namespace scope.  Templates
      aren't allowed in block scope, so we only need to check for class
      scope.  */
-  if (current_class_type)
+  if (!DECL_NAMESPACE_SCOPE_P (current_scope ()))
     {
-      error_at (loc, "concept definition in class scope");
+      error_at (loc, "concept definition not in namespace scope");
       return error_mark_node;
     }
 
   /* Initially build the concept declaration; it's type is bool.  */
   tree decl = build_lang_decl_loc (loc, CONCEPT_DECL, id, boolean_type_node);
-  DECL_CONTEXT (decl) = current_namespace;
+  DECL_CONTEXT (decl) = current_scope ();
 
   /* Push the enclosing template.  */
   return push_template_decl (decl);
@@ -27516,22 +27520,27 @@ do_auto_deduction (tree type, tree init, tree auto_node,
 	}
     }
 
-  /* Check any placeholder constraints against the deduced type. */
+  /* Check any placeholder constraints against the deduced type.  */
   if (flag_concepts && !processing_template_decl)
     if (tree constr = NON_ERROR (PLACEHOLDER_TYPE_CONSTRAINTS (auto_node)))
       {
-	/* Use the deduced type to check the associated constraints. If we
-	   have a partial-concept-id, rebuild the argument list so that
-	   we check using the extra arguments. */
-	gcc_assert (TREE_CODE (constr) == CHECK_CONSTR);
-	tree cargs = CHECK_CONSTR_ARGS (constr);
-	if (TREE_VEC_LENGTH (cargs) > 1)
-	  {
-	    cargs = copy_node (cargs);
-	    TREE_VEC_ELT (cargs, 0) = TREE_VEC_ELT (targs, 0);
-	  }
-	else
-	  cargs = targs;
+        /* Use the deduced type to check the associated constraints. If we
+           have a partial-concept-id, rebuild the argument list so that
+           we check using the extra arguments. */
+      	gcc_assert (TREE_CODE (constr) == TEMPLATE_ID_EXPR);
+      	tree cdecl = TREE_OPERAND (constr, 0);
+        tree cargs = TREE_OPERAND (constr, 1);
+        if (TREE_VEC_LENGTH (cargs) > 1)
+          {
+            cargs = copy_node (cargs);
+            TREE_VEC_ELT (cargs, 0) = TREE_VEC_ELT (targs, 0);
+          }
+        else
+          cargs = targs;
+
+  	/* Rebuild the check using the deduced arguments.  */
+  	constr = build_concept_check (cdecl, cargs, tf_none);
+	
 	if (!constraints_satisfied_p (constr, cargs))
 	  {
 	    if (complain & tf_warning_or_error)

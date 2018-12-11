@@ -1,5 +1,31 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Restore TS-style constrained type specifiers.
+	* constraint.cc (resolve_constraint_check): Handle concept definitions.
+	(build_real_concept_check): Build checks for C++2a concepts by
+	converting arguments.
+	(build_concept_check): New overload.
+	(build_concept_check): Use build_real_concept_check.
+	(finish_template_introduction): Pass tsubst flags.
+	(placeholder_extract_concept_and_args): Handle the template-id case.
+	(type_deducible_p): Redo deduction rules.
+	(cxx_satisfy_check): Don't tsubst in a template context. 
+	Add diagnostics.
+	(diagnose_constraints): Pass instantiation context.
+	* cp-tree.h (build_concept_check): New declarations.
+	* cxx-pretty-print.c (pp_cxx_nested_name_specifier): Fix a weird
+	case where we're printing '::::' for concepts. 
+	* error.c (dump_decl): Handle wildcard declarations in dump.
+	* parser.c (cp_parser_template_id): Build concept checks for certain
+	forms of template-id.
+	(cp_parser_maybe_constrained_type_specifier): Pass tsubst flags.
+	(make_constrained_auto): Handle concept definitions.
+	(start_concept_definition): Update declaration diagnostics. Associate
+	the current scope, not namespace.
+	(do_auto_deduction): Update auto deduction for new concept model.
+
+2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Migrating tests.
 	* constraint.cc (finish_constraint_binary_op): Handle errors in input.
 
