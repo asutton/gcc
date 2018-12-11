@@ -1,4 +1,9 @@
-2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-09-21  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Re-enable ordering check.
+	* call.c (joust): Re-enable seemingly redundant check.
+
+2018-09-21  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	PR c++/67147.
 	* pt.c (tsubst): Adjust wildcard argument during substitution.
