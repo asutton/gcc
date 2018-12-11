@@ -96,6 +96,8 @@ finish_constraint_binary_op (location_t loc, tree_code code, tree lhs, tree rhs)
 				 lhs, TREE_CODE (lhs), 
 				 rhs, TREE_CODE (rhs), 
 				 &overload, tf_none);
+  if (expr == error_mark_node)
+    return error_mark_node;
   SET_EXPR_LOCATION (expr, loc);
   return expr;
 }

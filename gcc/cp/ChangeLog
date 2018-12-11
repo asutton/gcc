@@ -1,6 +1,11 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Migrating tests.
+	* constraint.cc (finish_constraint_binary_op): Handle errors in input.
+
+2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Migrating tests.
 	* semantics.c (finish_call_expr): Diagnose calls to concepts.
 
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>

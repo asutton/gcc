@@ -1,6 +1,12 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Migrating tests.
+	* g++.dg/concepts/req11.C: Deleted.
+	* g++.dg/cpp2a/concepts-requires3.C: Moved tests.
+
+2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Migrating tests.
 	* g++.dg/concepts/req8.C: Deleted.
 	* g++.dg/concepts/req9.C: Deleted.
 	* g++.dg/concepts/req10.C: Deleted.
