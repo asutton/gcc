@@ -1,6 +1,8 @@
 // { dg-do compile }
 // { dg-options "-std=c++2a" }
 
+// Test the types of atomic constraints
+
 // req5.C
 struct fool {
   constexpr fool operator&&(fool) const { return {}; }

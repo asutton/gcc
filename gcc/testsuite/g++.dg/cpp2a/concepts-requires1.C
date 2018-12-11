@@ -50,3 +50,27 @@ template<typename T, T X> requires X struct S4 { }; // OK
 S4<int, 0> x1;      // { dg-error "invalid use of class template|does not have type" }
 S4<bool, true> x2; // OK
 S4<bool, false> x3; // { dg-error "invalid use of class template" }
+
+
+// req11.C
+template<typename T>
+concept Streamable = requires (T t) { t; };
+
+template<typename T>
+concept Range = requires (T t) { t; };
+
+// FIXME: There are two syntax errors here when there should be
+// just one.Note that !Range<T> is not a primary-expression and needs to
+// be wrapped in parens to be syntactically valid.
+template<class T>
+  requires Streamable<T> && !Range<T> // { dg-error "expected primary-expression|expected unqualified-id" }
+void print1(const T& x) { }
+
+template<class T>
+  requires Streamable<T> && (!Range<T>)
+void print2(const T& x) { }
+
+void driver_3()
+{
+  print2("hello"); // { dg-error "cannot call" }
+}
