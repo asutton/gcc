@@ -1,5 +1,9 @@
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: New.
+
+2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix crash when ordering unconstrained templates.
 	* g++.dg/cpp2a/concepts-cmath.C: New.
 

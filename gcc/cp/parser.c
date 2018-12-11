@@ -17983,15 +17983,10 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
      specifiers result in invented template parameters.  */
   if (parser->auto_is_implicit_function_template_parm_p)
     {
-      /* FIXME:  Use -fconcepts-natural to make the auto optional?  */
-      if (cp_lexer_next_token_is_not_keyword (parser->lexer, RID_AUTO))
-	{
-	  error_at (input_location, "%<auto%> is required for abbreviated "
-				    "function templates"); 
-	  return error_mark_node;
-	}
-      else
+      /* Allow `auto` after a concept-id.  */
+      if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AUTO))
         cp_lexer_consume_token (parser->lexer);
+
       tree parm = build_constrained_parameter (con, proto, args);
       return synthesize_implicit_template_parm (parser, parm);
     }

@@ -1,5 +1,16 @@
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* parser.cc (cp_parser_maybe_constrained_type_specifier): Allow
+	auto after a constrained type specifier.
+
+2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix crash when ordering unconstrained templates.
+	* constraint.cc (get_normalized_constraints_from_info): Unpack
+	subsumption arguments more carefully.
+
+2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix crash when ordering unconstrained templates.
 	* constraint.cc (get_normalized_constraints_from_info): Unpack
 	subsumption arguments more carefully.
