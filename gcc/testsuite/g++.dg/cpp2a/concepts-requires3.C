@@ -34,8 +34,23 @@ struct S2
   auto fn() const { return S1<S2>(); }
 };
 
-int main()
+int driver_1()
 {
   fn(S2{});
   return 0;
+}
+
+// req10.C
+// Test implicit conversion requirements
+
+template<typename T, typename U>
+concept ConvertibleTo = requires(T& t) { {t} -> U&; };
+
+struct B { };
+class D : /*private*/ B { };
+
+int main()
+{
+  static_assert(ConvertibleTo<D, B>()); // { dg-error "not a function" }
+  static_assert(ConvertibleTo<D, B>); // { dg-error "static assertion failed" }
 }

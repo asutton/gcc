@@ -2575,6 +2575,12 @@ finish_call_expr (tree fn, vec<tree, va_gc> **args, bool disallow_virtual,
     /* If the "function" is really an object of class type, it might
        have an overloaded `operator ()'.  */
     result = build_op_call (fn, args, complain);
+  else if (concept_check_p (fn))
+    {
+      location_t loc = EXPR_LOC_OR_LOC (fn, input_location);
+      error_at (loc, "%qE is not a function", fn);
+      return error_mark_node;
+    }
 
   if (!result)
     /* A call where the function is unknown.  */

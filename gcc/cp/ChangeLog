@@ -1,5 +1,10 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Migrating tests.
+	* semantics.c (finish_call_expr): Diagnose calls to concepts.
+
+2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix partial ordering error.
 	* pt.c (more_specialized_partial_spec): Don't immediately return when 
 	detecting a winner.
