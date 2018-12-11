@@ -1,3 +1,8 @@
+2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix ambiguity in constrained type specifiers.
+	* g++.dg/cpp2a/concepts-requires3.C: New tests.
+
 2018-09-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Removing legacy test file.

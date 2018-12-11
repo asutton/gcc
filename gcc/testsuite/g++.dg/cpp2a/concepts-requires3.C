@@ -107,3 +107,19 @@ template <typename T>
 constexpr bool f2() { return true; }
 
 static_assert(f2<int>()); // { dg-error "cannot call|does not satisfy placeholder constraints" }
+
+// req13.C
+
+template<class T, class...Args>
+concept Constructible =
+  requires(Args&&...args) {
+    T {((Args&&)(args))...};
+    new T{((Args&&)(args))...};
+  };
+
+template<typename T>
+  requires Constructible<T> 
+struct A { };
+
+A<int> a;
+

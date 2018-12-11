@@ -1,3 +1,11 @@
+2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix ambiguity in constrained type specifiers.
+	* parser.c (cp_parser_template_id): Suppress diagnostics when building
+	a concept check.
+	(cp_parser_maybe_constrained_type_specifier): Reject "complete"
+	concept checks as partial-concept-ids.
+
 2018-09-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Restore TS-style constrained type specifiers.

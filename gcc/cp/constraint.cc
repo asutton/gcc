@@ -1066,6 +1066,8 @@ build_concept_check_arguments (tree arg, tree rest)
   return args;
 }
 
+/* Builds an id-expression of the form `C<Args...>`.  */
+
 tree
 build_real_concept_check(tree tmpl, tree args, tsubst_flags_t complain)
 {
@@ -1081,6 +1083,7 @@ build_real_concept_check(tree tmpl, tree args, tsubst_flags_t complain)
 } // namespace
 
 /* Construct an expression that checks TARGET using ARGS.  */
+
 tree
 build_concept_check (tree target, tree args, tsubst_flags_t complain)
 {
@@ -1097,6 +1100,7 @@ build_concept_check (tree target, tree args, tsubst_flags_t complain)
 
    ARG and REST are the explicit template arguments for the
    eventual concept check. */
+
 tree
 build_concept_check (tree target, tree arg, tree rest, tsubst_flags_t complain)
 {

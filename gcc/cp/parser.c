@@ -16321,9 +16321,9 @@ cp_parser_template_id (cp_parser *parser,
 							templ, 
 							arguments);
       if (!template_id)
-      	template_id = build_concept_check (templ, 
-      					   arguments, 
-      					   tf_warning_or_error);
+      	template_id = build_concept_check (templ, arguments, tf_none);
+      if (TREE_CODE (template_id) == TEMPLATE_ID_EXPR)
+	SET_EXPR_LOCATION (template_id, combined_loc);
     }
   /* A template-like identifier may be a partial concept id.  */
   else if (flag_concepts
@@ -17907,7 +17907,7 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
 {
   gcc_assert (args ? TREE_CODE (args) == TREE_VEC : true);
 
-  /* If we a constrained-type-specifier cannot be deduced. */
+  /* A constrained-type-specifier cannot be deduced. */
   if (parser->prevent_constrained_type_specifiers)
     return NULL_TREE;
 
@@ -17926,6 +17926,32 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
   tree check = build_concept_check (decl, placeholder, args, tf_none);
   if (check == error_mark_node)
     return NULL_TREE;
+
+  /* In the process of trying to form a partial-concept-id, try to 
+     build a check expression with just the arguments. If this succeeds, 
+     then we've detected two possible interpretations of template-id 
+     'C<Args...>'. This is either a constrained-type-specifier or a 
+     concept-check. As an example:
+
+	template<typename T, typename... Args>
+	concept C = true;
+
+	template<typename T>
+	  requires C<T> // ambiguity
+	void f(T);
+
+     Prefer the concept check over the constrained-type-specifier by
+     rejecting this as a type specifier if C<Args...> is a template-id.
+
+     FIXME: If the next token is `auto`, then this is clearly intended
+     to be a constrained-type-specifier.  */
+  if (args)
+    {
+      tree alt_check = build_concept_check (decl, args, tf_none);
+      if (alt_check != error_mark_node)
+	return NULL_TREE;
+    }
+
 
   /* Deduce the checked constraint and the prototype parameter.  */
   tree con;
