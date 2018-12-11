@@ -1,4 +1,9 @@
-2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-09-21  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Adding test.
+	* g++.dg/cpp2a/cconcepts-pr66844.C: New.
+
+2018-09-21  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Migrating test.
 	* g++.dg/cpp2a/cconcepts-pr66962.C: New.
