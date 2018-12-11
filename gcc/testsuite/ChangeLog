@@ -1,5 +1,24 @@
 2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Migrating tests.
+	* g++.dg/cpp2a/concepts-requires9.C: New.
+	* g++.dg/concepts/req15.C: Deleted.
+
+2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Restructure requires tests.
+	* g++.dg/cpp2a/concepts-requires4.C: New.
+	* g++.dg/cpp2a/concepts-requires5.C: New.
+	* g++.dg/cpp2a/concepts-requires6.C: New.
+	* g++.dg/cpp2a/concepts-requires7.C: New.
+	* g++.dg/cpp2a/concepts-requires8.C: New.
+	* g++.dg/cpp2a/concepts-requires1.C: Move tests into new files.
+	* g++.dg/cpp2a/concepts-requires2.C: Move tests into new files.
+	* g++.dg/cpp2a/concepts-requires3.C: Move tests into new files.
+	* g++.dg/concepts/req14.C: Deleted.
+
+2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Fix ambiguity in constrained type specifiers.
 	* g++.dg/cpp2a/concepts-requires3.C: New tests.
 
