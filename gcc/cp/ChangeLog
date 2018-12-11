@@ -1,4 +1,4 @@
-2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-09-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Restore TS-style constrained type specifiers.
 	* constraint.cc (resolve_constraint_check): Handle concept definitions.

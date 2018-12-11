@@ -1,4 +1,9 @@
-2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-09-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Removing legacy test file.
+	* g++.dg/concepts/req12.C: Deleted.
+
+2018-09-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Restore TS-style constrained type specifiers.
 	* g++.dg/cpp2a/concepts-requires3.C: New tests.
