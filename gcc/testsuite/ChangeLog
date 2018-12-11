@@ -1,5 +1,11 @@
 2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Migrating test.
+	* g++.dg/cpp2a/cconcepts-pr66962.C: New.
+	* g++.dg/concepts/disjunction1.C: Deleted.
+
+2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* g++.dg/cpp2a/concepts-requires14.C: New.
 	* g++.dg/cpp2a/concepts-requires14.C: New.
 
