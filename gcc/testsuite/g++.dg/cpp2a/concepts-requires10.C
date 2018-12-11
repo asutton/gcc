@@ -24,4 +24,10 @@ template <class T>
   requires _Valid<nested_type, T>
 struct has_nested_type<T> : true_type { };
 
+struct Nested
+{
+  using type = int;
+};
+
 static_assert(!has_nested_type<int>());
+static_assert(has_nested_type<Nested>());
