@@ -1,3 +1,9 @@
+2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	* constraint.cc (combine_constraint_expressions): Disable folding
+	when combining constraints.
+	(diagnose_check): Handle invalid concept definitions.
+
 2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix ambiguity in constrained type specifiers.
