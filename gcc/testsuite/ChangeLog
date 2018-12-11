@@ -1,3 +1,8 @@
+2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	PR c++/67147.
+	* g++.dg/cpp2a/concepts-pr67147.C: New.
+
 2018-09-21  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Adding test.

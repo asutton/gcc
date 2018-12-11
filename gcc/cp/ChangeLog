@@ -1,5 +1,10 @@
 2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	PR c++/67147.
+	* pt.c (tsubst): Adjust wildcard argument during substitution.
+
+2018-09-20  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* constraint.cc (combine_constraint_expressions): Disable folding
 	when combining constraints.
 	(diagnose_check): Handle invalid concept definitions.

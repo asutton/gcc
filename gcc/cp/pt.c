@@ -14593,9 +14593,6 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
 	r = NULL_TREE;
 
-	if (TREE_CODE (args) == TEMPLATE_ID_EXPR) {
-		inform (input_location, "FAILING");
-	}
 	gcc_assert (TREE_VEC_LENGTH (args) > 0);
 	template_parm_level_and_index (t, &level, &idx); 
 
@@ -14631,6 +14628,14 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	    if (code == TEMPLATE_TYPE_PARM)
 	      {
 		int quals;
+
+		/* When building concept checks for the purpose of
+		   deducing placeholders, we can end up with wildcards 
+		   where types are expected. Adjust this to the deduced 
+		   value.  */
+		if (TREE_CODE (arg) == WILDCARD_DECL)
+		  arg = TREE_TYPE (TREE_TYPE (arg));
+		
 		gcc_assert (TYPE_P (arg));
 
 		quals = cp_type_quals (arg) | cp_type_quals (t);

@@ -1067,6 +1067,9 @@ build_concept_check_arguments (tree arg, tree rest)
   return args;
 }
 
+/* Coerce template parameters, but having replaced any wildcard declarations
+   with their deduced values.  */
+
 /* Builds an id-expression of the form `C<Args...>`.  */
 
 tree
