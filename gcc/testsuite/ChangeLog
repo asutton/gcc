@@ -1,6 +1,12 @@
 2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Migrating tests.
+	* g++.dg/cpp2a/concepts-requires10.C: New.
+	* g++.dg/concepts/req16.C: Deleted.
+
+2018-09-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Migrating tests.
 	* g++.dg/cpp2a/concepts-requires9.C: New.
 	* g++.dg/concepts/req15.C: Deleted.
 
