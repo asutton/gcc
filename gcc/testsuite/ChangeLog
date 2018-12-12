@@ -1,11 +1,20 @@
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* gcc/testsuite/g++.dg/cpp2a/concepts-locations1.C: Update diagnostics.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-member-concept.C: Update diagnostics.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-pr85265: Update build flags.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts3.C: New.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts4.C: New.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts5.C: New.
+
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* gcc/testsuite/g++.dg/cpp2a/concepts.C: Update diagnostics.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: Update build options.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts2.C: Update build options.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: Update build flags.
+	* gcc/testsuite/g++.dg/cpp2a/concepts-ts2.C: Update build flags.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
