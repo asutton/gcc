@@ -1,5 +1,9 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/template-parm6.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-template-parm6.C
 
 template<typename... Ts> struct are_same;
 
@@ -28,10 +32,10 @@ template<typename... Ts>
   }
 
 template<typename... Ts>
-  concept bool C1 = are_same<Ts...>::value;
+  concept C1 = are_same<Ts...>::value;
 
 template<bool... Bs>
-  concept bool C2 = all_of(Bs...);
+  concept C2 = all_of(Bs...);
 
 template<C1... Ts> struct S1 { };
 template<C1...> struct S2 { };

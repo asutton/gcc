@@ -1,8 +1,12 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/friend1.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-friend1.C
 
 template<typename T>
-  concept bool Eq() { return requires(T t) { t == t; }; }
+  concept Eq = requires(T t) { t == t; };
 
 struct Nt {
   template<Eq T> friend void f(T) { }
@@ -15,7 +19,7 @@ template<Eq T>
 
 template<typename T>
   struct S {
-    friend bool operator==(S, S) requires Eq<T>() { return true; }
+    friend bool operator==(S, S) requires Eq<T> { return true; }
 
     friend void proc<>(S*); // { dg-error "does not match any template declaration" }
   };

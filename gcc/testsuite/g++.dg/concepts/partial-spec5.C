@@ -1,3 +1,4 @@
+// needs port after issue 48 is resolved
 // PR c++/67138
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }

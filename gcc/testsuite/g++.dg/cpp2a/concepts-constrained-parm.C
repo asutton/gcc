@@ -1,8 +1,7 @@
-// needs port, no constrained concept template parms
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 template<typename T>
-  concept bool C() { return __is_class(T); }
+  concept C = __is_class(T);
 
 template<const C T> struct S1 { };    // { dg-error "cv-qualified" }
 template<volatile C T> struct S2 { }; // { dg-error "cv-qualified" }

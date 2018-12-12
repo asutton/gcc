@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 // { dg-do run { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// needs port, () around not in requires-clause, ICE on mixing, see issue 48
+// { dg-do run}
+// { dg-options "-std=c++17 -fconcepts" }
+>>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes
 
 #include <cassert>
 

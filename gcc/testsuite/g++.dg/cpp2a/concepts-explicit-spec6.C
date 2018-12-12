@@ -1,5 +1,4 @@
-// needs port
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 template<typename T>
 struct A {

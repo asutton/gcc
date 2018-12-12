@@ -1,62 +1,66 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/traits1.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-traits1.C
 
 template<typename T>
-  concept bool Nothrow_assignable() { return __has_nothrow_assign(T); }
+  concept Nothrow_assignable = __has_nothrow_assign(T);
 
 template<typename T>
-  concept bool Nothrow_constructible() { return __has_nothrow_constructor(T); }
+  concept Nothrow_constructible = __has_nothrow_constructor(T);
 
 template<typename T>
-  concept bool Nothrow_copyable() { return __has_nothrow_copy(T); }
+  concept Nothrow_copyable = __has_nothrow_copy(T);
 
 template<typename T>
-  concept bool Trivially_assignable() { return __has_trivial_assign(T); }
+  concept Trivially_assignable = __has_trivial_assign(T);
 
 template<typename T>
-  concept bool Trivially_constructible() { return __has_trivial_constructor(T); }
+  concept Trivially_constructible = __has_trivial_constructor(T);
 
 template<typename T>
-  concept bool Trivially_copyable() { return __has_trivial_copy(T); }
+  concept Trivially_copyable = __has_trivial_copy(T);
 
 template<typename T>
-  concept bool Trivially_destructible() { return __has_trivial_destructor(T); }
+  concept Trivially_destructible = __has_trivial_destructor(T);
 
 template<typename T>
-  concept bool Dynamically_destructible() { return __has_virtual_destructor(T); }
+  concept Dynamically_destructible = __has_virtual_destructor(T);
 
 template<typename T>
-  concept bool Abstract() { return __is_abstract(T); }
+  concept Abstract = __is_abstract(T);
 
 template<typename T>
-  concept bool Polymorphic() { return __is_polymorphic(T); }
+  concept Polymorphic = __is_polymorphic(T);
 
 template<typename T>
-  concept bool Class() { return __is_class(T); }
+  concept Class = __is_class(T);
 
 template<typename T>
-  concept bool Empty() { return __is_empty(T); }
+  concept Empty = __is_empty(T);
 
 template<typename T>
-  concept bool Enum() { return __is_enum(T); }
+  concept Enum = __is_enum(T);
 
 template<typename T>
-  concept bool Final() { return __is_final(T); }
+  concept Final = __is_final(T);
 
 template<typename T>
-  concept bool Literal_type() { return __is_literal_type(T); }
+  concept Literal_type = __is_literal_type(T);
 
 template<typename T>
-  concept bool Pod() { return __is_pod(T); }
+  concept Pod = __is_pod(T);
 
 template<typename T>
-  concept bool Standard_layout() { return __is_standard_layout(T); }
+  concept Standard_layout = __is_standard_layout(T);
 
 template<typename T>
-  concept bool Trivial() { return __is_trivial(T); }
+  concept Trivial = __is_trivial(T);
 
 template<typename T>
-  concept bool Union() { return __is_union(T); }
+  concept Union = __is_union(T);
 
 template<Nothrow_assignable T> void f1() { }
 template<Nothrow_copyable T> void f2() { }

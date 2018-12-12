@@ -1,11 +1,10 @@
-// needs port
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 template<typename T>
-  concept bool C() { return __is_class(T); }
+  concept C = __is_class(T);
 
 template<typename T>
-  concept bool D() { return C<T>() && __is_empty(T); }
+  concept D = C<T> && __is_empty(T);
 
 struct X { };
 struct Y { int n; };
@@ -13,10 +12,10 @@ struct Y { int n; };
 template<typename T>
   struct S {
     void f() { }                 // #1
-    void f() requires C<T>() { } // #2
+    void f() requires C<T> { } // #2
 
-    void g() requires C<T>() { } // #1
-    void g() requires D<T>() { } // #2
+    void g() requires C<T> { } // #1
+    void g() requires D<T> { } // #2
   };
 
 template void S<int>::f(); // #1

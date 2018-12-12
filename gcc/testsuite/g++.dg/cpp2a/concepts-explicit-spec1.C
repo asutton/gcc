@@ -1,14 +1,13 @@
-// needs port
 // { dg-do run }
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 #include <cassert>
 
 template<typename T>
-  concept bool C() { return __is_class(T); }
+  concept C = __is_class(T);
 
 template<typename T>
-  concept bool D() { return C<T>() && __is_empty(T); }
+  concept D = C<T> && __is_empty(T);
 
 struct X { } x;
 struct Y { int n; } y;

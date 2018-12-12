@@ -1,5 +1,9 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/template-parm7.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-template-parm7.C
 
 template<typename... Ts> struct are_same;
 
@@ -29,17 +33,17 @@ template<typename... Ts>
 
 
 template<typename... Ts>
-  concept bool C1 = are_same<Ts...>::value;
+  concept C1 = are_same<Ts...>::value;
 
 template<bool... Bs>
-  concept bool C2 = all_of(Bs...);
+  concept C2 = all_of(Bs...);
 
 template<C1... Ts> struct S1 { }; // OK
-S1<int, int, char> s1; // { dg-error "constraint failure|invalid type" }
+S1<int, int, char> s1; // { dg-error "invalid" }
 template<C1 Ts> struct S2 { }; // { dg-error "variadic constraint"  }
 
 template<C2... Bs> struct S3 { }; // OK
-S3<true, true, false> s3; // { dg-error "constraint failure|invalid type" }
+S3<true, true, false> s3; // { dg-error "invalid" }
 template<C2 Bs> struct S4 { }; // { dg-error "variadic constraint" }
 
 int main() { }

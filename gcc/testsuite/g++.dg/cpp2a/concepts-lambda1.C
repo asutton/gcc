@@ -1,6 +1,6 @@
 // PR c++/82565
-// { dg-do compile { target c++14 } }
-// { dg-additional-options -fconcepts }
+// { dg-do compile }
+// { dg-options "-std=c++2a" }
 
 struct string
 {
@@ -10,17 +10,16 @@ struct string
 };
 
 template<typename T, typename ReturnType>
-concept bool Concept() {
-  return requires(T t, const string& s) {
+concept Concept =
+  requires(T t, const string& s) {
     { t(s) } -> ReturnType;
   };
-}
 
 struct test {
   string _str;
 
   template<typename Visitor>
-    requires Concept<Visitor, bool>()
+    requires Concept<Visitor, bool>
   decltype(auto) visit(Visitor&& visitor) const {
     return visitor(_str);
   }
