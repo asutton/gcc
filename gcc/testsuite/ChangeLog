@@ -1,68 +1,72 @@
-2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 	
-	* gcc/testsuite/g++.dg/cpp2a/concepts-requires16.C: New.
+	* g++.dg/cpp2a/concepts-requires16.C: Add variadic tests.
+
+2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+	
+	* g++.dg/cpp2a/concepts-requires16.C: New.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* gcc/testsuite/g++.dg/cpp2a/concepts-locations1.C: Update diagnostics.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-member-concept.C: Update diagnostics.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-pr85265: Update build flags.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts3.C: New.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts4.C: New.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts5.C: New.
+	* g++.dg/cpp2a/concepts-locations1.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts-member-concept.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts-pr85265: Update build flags.
+	* g++.dg/cpp2a/concepts-ts3.C: New.
+	* g++.dg/cpp2a/concepts-ts4.C: New.
+	* g++.dg/cpp2a/concepts-ts5.C: New.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* gcc/testsuite/g++.dg/cpp2a/concepts.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts.C: Update diagnostics.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: Update build flags.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts2.C: Update build flags.
+	* g++.dg/cpp2a/concepts-ts1.C: Update build flags.
+	* g++.dg/cpp2a/concepts-ts2.C: Update build flags.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* gcc/testsuite/g++.dg/cpp2a/concepts.C: Update diagnostics.
-	* gcc/testsuite/g++.dg/cpp2a/concepts-ts2.C: New.
+	* g++.dg/cpp2a/concepts.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts-ts2.C: New.
 
 2018-09-22  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg: Migrating tests to cpp2a.
+	* g++.dg: Migrating tests to cpp2a.
 
 2018-09-21  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg: Migrating tests to cpp2a.
+	* g++.dg: Migrating tests to cpp2a.
 
 2018-09-20  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg: Migrating tests to cpp2a.
+	* g++.dg: Migrating tests to cpp2a.
 
 2018-09-20  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg: Updating tests.
+	* g++.dg: Updating tests.
 
 2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg: Migrate PR tests to cpp2a.
+	* g++.dg: Migrate PR tests to cpp2a.
 
 2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg/concepts/class-deduction2.C: Deleted.
+	* g++.dg/concepts/class-deduction2.C: Deleted.
 
 2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg/concepts/class.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/class1.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/class2.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/class3.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/class4.C: Deleted.
+	* g++.dg/concepts/class.C: Deleted.
+	* g++.dg/concepts/class1.C: Deleted.
+	* g++.dg/concepts/class2.C: Deleted.
+	* g++.dg/concepts/class3.C: Deleted.
+	* g++.dg/concepts/class4.C: Deleted.
 
 2018-09-12  Jeffery Chapman  <jchapman@lock3software.com>
 
-	* gcc/testsuite/g++.dg/concepts/alias1.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/alias2.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/alias3.C: Deleted.
-	* gcc/testsuite/g++.dg/concepts/alias4.C: Deleted.
+	* g++.dg/concepts/alias1.C: Deleted.
+	* g++.dg/concepts/alias2.C: Deleted.
+	* g++.dg/concepts/alias3.C: Deleted.
+	* g++.dg/concepts/alias4.C: Deleted.
 
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
 

@@ -951,9 +951,9 @@ finish_shorthand_constraint (tree decl, tree constr)
   /* If the parameter declaration is variadic, but the concept
      is not then we need to apply the concept to every element
      in the pack.  */
-  bool is_proto_pack = template_parameter_pack_p (proto);
-  bool is_decl_pack = template_parameter_pack_p (decl);
-  bool apply_to_all_p = is_decl_pack && !is_proto_pack;
+  bool variadic_concept_p = template_parameter_pack_p (proto);
+  bool declared_pack_p = template_parameter_pack_p (decl);
+  bool apply_to_all_p = declared_pack_p && !variadic_concept_p;
 
   /* Get the argument and overload used for the requirement
      and adjust it if we're going to expand later.  */
@@ -968,14 +968,9 @@ finish_shorthand_constraint (tree decl, tree constr)
     check = ovl_make (tmpl);
   check = build_concept_check (check, arg, args, tf_warning_or_error);
 
-  /* Make the check a pack expansion if needed.
-
-     FIXME: We should be making a fold expression. */
+  /* Make the check a fold-expression if needed.  */
   if (apply_to_all_p)
-    {
-      check = make_pack_expansion (check);
-      TREE_TYPE (check) = boolean_type_node;
-    }
+    check = finish_left_unary_fold_expr (check, TRUTH_ANDIF_EXPR);
 
   return check;
 }

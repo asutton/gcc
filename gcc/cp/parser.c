@@ -4895,7 +4895,7 @@ cp_parser_statement_expr (cp_parser *parser)
 
    This returns the tree code corresponding to the matched operator
    as an int. When the current token matches a compound assignment
-   opertor, the resulting tree code is the negative value of the
+   operator, the resulting tree code is the negative value of the
    non-assignment operator. */
 
 static int

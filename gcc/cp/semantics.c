@@ -9829,7 +9829,7 @@ capture_decltype (tree decl)
 static tree
 finish_unary_fold_expr (tree expr, int op, tree_code dir)
 {
-  // Build a pack expansion (assuming expr has pack type).
+  /* Build a pack expansion (assuming expr has pack type).  */
   if (!uses_parameter_packs (expr))
     {
       error_at (location_of (expr), "operand of fold expression has no "
@@ -9838,7 +9838,7 @@ finish_unary_fold_expr (tree expr, int op, tree_code dir)
     }
   tree pack = make_pack_expansion (expr);
 
-  // Build the fold expression.
+  /* Build the fold expression.  */
   tree code = build_int_cstu (integer_type_node, abs (op));
   tree fold = build_min_nt_loc (UNKNOWN_LOCATION, dir, code, pack);
   FOLD_EXPR_MODIFY_P (fold) = (op < 0);

@@ -1,3 +1,8 @@
+2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	* constraint.cc (finish_shorthand_constraint): Make fold expressions,
+	not naked parameter packs.
+
 2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	* constraint.cc (satisfy_conjunction): Handle errors.
