@@ -1,5 +1,9 @@
 2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
 
+	* gcc/testsuite/g++.dg/concepts/class-deduction2.C: Deleted.
+
+2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
+
 	* gcc/testsuite/g++.dg/concepts/class.C: Deleted.
 	* gcc/testsuite/g++.dg/concepts/class1.C: Deleted.
 	* gcc/testsuite/g++.dg/concepts/class2.C: Deleted.
