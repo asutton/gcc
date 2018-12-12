@@ -1,6 +1,12 @@
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	* c.opt: Add -Wconcepts-ts
+	* parser.c (cp_parser_decl_specifier_seq): Update warning about
+	use of 'concept'.
+
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
-	* parser.cc (cp_parser_maybe_constrained_type_specifier): Allow
+	* parser.c (cp_parser_maybe_constrained_type_specifier): Allow
 	auto after a constrained type specifier.
 
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>

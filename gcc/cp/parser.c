@@ -13849,9 +13849,11 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
              concept declarations later.  */
           if (cxx_dialect >= cxx2a)
             {
-	            gcc_rich_location richloc (token->location);
-              warning_at (&richloc, 0, "%<concept%> is deprecated as a "
-                                       "decl-specifier in C++20 and later");
+	      gcc_rich_location richloc (token->location);
+	      if (warn_concepts_ts)
+		warning_at (&richloc, 0, "%<concept%> is deprecated as a "
+					 "declaration specifier in C++20 and "
+					 "later");
             }
           
           ds = ds_concept;

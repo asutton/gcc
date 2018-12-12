@@ -1233,6 +1233,11 @@ C ObjC C++ ObjC++ Var(warn_restrict) Warning LangEnabledBy(C ObjC C++ ObjC++, Wa
 Warn when an argument passed to a restrict-qualified parameter aliases with
 another argument.
 
+Wconcepts-ts
+C++ ObjC++ Var(warn_concepts_ts) Warning Init(1)
+Warn about the use of language features defined in the Concepts TS but not
+in C++20.
+
 ansi
 C ObjC C++ ObjC++
 A synonym for -std=c89 (for C) or -std=c++98 (for C++).
