@@ -1,3 +1,11 @@
+2018-10-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Rewrite introduction processing.
+	* constraint.cc: Replace existing implementation of introduction
+	semantics
+	* parser.c (cp_parser_template_introduction): Diagnose errors on
+	invalid introductions.
+
 2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	* constraint.cc (finish_shorthand_constraint): Make fold expressions,

@@ -1,3 +1,8 @@
+2018-10-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Rewrite introduction processing.
+	* g++.dg/cpp2a/concepts-ts6.C: Add variadic tests.
+
 2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 	
 	* g++.dg/cpp2a/concepts-requires16.C: Add variadic tests.

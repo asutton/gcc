@@ -27792,7 +27792,9 @@ cp_parser_template_introduction (cp_parser* parser, bool member_p)
       return true;
     }
 
-  error_at (token->location, "no matching concept for template-introduction");
+  if (parms == NULL_TREE)
+    error_at (token->location, "no matching concept for template-introduction");
+  
   return true;
 }
 

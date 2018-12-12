@@ -978,6 +978,7 @@ finish_shorthand_constraint (tree decl, tree constr)
 /* Returns a conjunction of shorthand requirements for the template
    parameter list PARMS. Note that the requirements are stored in
    the TYPE of each tree node. */
+
 tree
 get_shorthand_constraints (tree parms)
 {
@@ -992,90 +993,184 @@ get_shorthand_constraints (tree parms)
   return result;
 }
 
-// Returns and chains a new parameter for PARAMETER_LIST which will conform
-// to the prototype given by SRC_PARM.  The new parameter will have its
-// identifier and location set according to IDENT and PARM_LOC respectively.
+/* Get the deduced wildcard from a DEDUCED placeholder.  If the deduced 
+   wildcard is a pack, return the first argument of that pack.  */
+
 static tree
-process_introduction_parm (tree parameter_list, tree src_parm)
+get_deduced_wildcard(tree wildcard)
 {
-  // If we have a pack, we should have a single pack argument which is the
-  // placeholder we want to look at.
-  bool is_parameter_pack = ARGUMENT_PACK_P (src_parm);
-  if (is_parameter_pack)
-    src_parm = TREE_VEC_ELT (ARGUMENT_PACK_ARGS (src_parm), 0);
-
-  // At this point we should have a wildcard, but we want to
-  // grab the associated decl from it.  Also grab the stored
-  // identifier and location that should be chained to it in
-  // a PARM_DECL.
-  gcc_assert (TREE_CODE (src_parm) == WILDCARD_DECL);
-
-  tree ident = DECL_NAME (src_parm);
-  location_t parm_loc = DECL_SOURCE_LOCATION (src_parm);
-
-  // If we expect a pack and the deduced template is not a pack, or if the
-  // template is using a pack and we didn't declare a pack, throw an error.
-  if (is_parameter_pack != WILDCARD_PACK_P (src_parm))
-    {
-      error_at (parm_loc, "cannot match pack for introduced parameter");
-      tree err_parm = build_tree_list (error_mark_node, error_mark_node);
-      return chainon (parameter_list, err_parm);
-    }
-
-  src_parm = TREE_TYPE (src_parm);
-
-  tree parm;
-  bool is_non_type;
-  if (TREE_CODE (src_parm) == TYPE_DECL)
-    {
-      is_non_type = false;
-      parm = finish_template_type_parm (class_type_node, ident);
-    }
-  else if (TREE_CODE (src_parm) == TEMPLATE_DECL)
-    {
-      is_non_type = false;
-      begin_template_parm_list ();
-      current_template_parms = DECL_TEMPLATE_PARMS (src_parm);
-      end_template_parm_list ();
-      parm = finish_template_template_parm (class_type_node, ident);
-    }
-  else
-    {
-      is_non_type = true;
-
-      // Since we don't have a declarator, so we can copy the source
-      // parameter and change the name and eventually the location.
-      parm = copy_decl (src_parm);
-      DECL_NAME (parm) = ident;
-    }
-
-  // Wrap in a TREE_LIST for process_template_parm.  Introductions do not
-  // retain the defaults from the source template.
-  parm = build_tree_list (NULL_TREE, parm);
-
-  return process_template_parm (parameter_list, parm_loc, parm,
-				is_non_type, is_parameter_pack);
+  if (ARGUMENT_PACK_P (wildcard))
+    wildcard = TREE_VEC_ELT (ARGUMENT_PACK_ARGS (wildcard), 0);
+  gcc_assert (TREE_CODE (wildcard) == WILDCARD_DECL);
+  return wildcard;
 }
 
-/* Associates a constraint check to the current template based
-   on the introduction parameters.  INTRO_LIST must be a TREE_VEC
-   of WILDCARD_DECLs containing a chained PARM_DECL which
-   contains the identifier as well as the source location.
-   TMPL_DECL is the decl for the concept being used.  If we
-   take a concept, C, this will form a check in the form of
-   C<INTRO_LIST> filling in any extra arguments needed by the
-   defaults deduced.
+/* Returns the prototype parameter for the nth deduced wildcard.  */
 
-   Returns NULL_TREE if no concept could be matched and
-   error_mark_node if an error occurred when matching.  */
+static tree
+get_introdcution_prototype(tree wildcards, int index)
+{
+  return TREE_TYPE (get_deduced_wildcard (TREE_VEC_ELT (wildcards, index)));
+}
+
+/* Introduce a type template parameter.  */
+
+static tree
+introduce_type_template_parameter(tree wildcard, bool& non_type_p)
+{
+  non_type_p = false;
+  return finish_template_type_parm (class_type_node, DECL_NAME (wildcard));
+}
+
+/* Introduce a template template parameter.  */
+
+static tree
+introduce_template_template_parameter(tree wildcard, bool& non_type_p)
+{
+  non_type_p = false;
+  begin_template_parm_list ();
+  current_template_parms = DECL_TEMPLATE_PARMS (TREE_TYPE (wildcard));
+  end_template_parm_list ();
+  return finish_template_template_parm (class_type_node, DECL_NAME (wildcard));
+}
+
+/* Introduce a template non-type parameter.  */
+
+static tree
+introduce_nontype_template_parameter(tree wildcard, bool& non_type_p)
+{
+  non_type_p = true;
+  tree parm = copy_decl (TREE_TYPE (wildcard));
+  DECL_NAME (parm) = DECL_NAME (wildcard);
+  return parm;
+}
+
+/* Introduce a single template parameter.  */
+
+static tree
+build_introduced_template_parameter(tree wildcard, bool& non_type_p)
+{
+  tree proto = TREE_TYPE (wildcard);
+  
+  tree parm;
+  if (TREE_CODE (proto) == TYPE_DECL)
+    parm = introduce_type_template_parameter (wildcard, non_type_p);
+  else if (TREE_CODE (proto) == TEMPLATE_DECL)
+    parm = introduce_template_template_parameter (wildcard, non_type_p);
+  else
+    parm = introduce_nontype_template_parameter (wildcard, non_type_p);
+
+  /* Wrap in a TREE_LIST for process_template_parm. Note that introduced 
+     parameters do not retain the defaults from the source parameter.  */
+  return build_tree_list (NULL_TREE, parm);
+}
+
+/* Introduce a single template parameter.  */
+
+static tree
+introduce_template_parameter(tree parms, tree wildcard)
+{
+  gcc_assert (!ARGUMENT_PACK_P (wildcard));
+  tree proto = TREE_TYPE (wildcard);
+  location_t loc = DECL_SOURCE_LOCATION (wildcard);
+
+  /* Diagnose the case where we have C{...Args}.  */
+  if (WILDCARD_PACK_P (wildcard))
+    {
+      tree id = DECL_NAME (wildcard);
+      error_at (loc, "%qE cannot be introduced with an ellipsis %<...%>", id);
+      inform(DECL_SOURCE_LOCATION (proto), "prototype declared here");
+    }
+
+  bool non_type_p;
+  tree parm = build_introduced_template_parameter (wildcard, non_type_p);
+  return process_template_parm (parms, loc, parm, non_type_p, false);
+}
+
+/* Introduce a template parameter pack.  */
+
+static tree
+introduce_template_parameter_pack(tree parms, tree wildcard)
+{
+  bool ellipsis_p;
+  bool non_type_p;
+  tree parm = build_introduced_template_parameter (wildcard, non_type_p);
+  location_t loc = DECL_SOURCE_LOCATION (wildcard);
+  return process_template_parm (parms, loc, parm, non_type_p, true);
+}
+
+/* Introduce the nth template parameter.  */
+
+static tree
+introduce_template_parameter(tree parms, tree wildcards, int& index)
+{
+  tree deduced = TREE_VEC_ELT (wildcards, index++);
+  return introduce_template_parameter (parms, deduced);
+}
+
+/* Introduce either a template parameter pack or a list of template
+   parameters.  */
+
+static tree
+introduce_template_parameters(tree parms, tree wildcards, int& index)
+{
+  /* If the prototype was a parameter, we better have deduced an
+     argument pack, and that argument must be the last deduced value
+     in the wildcard vector.  */
+  tree deduced = TREE_VEC_ELT (wildcards, index++);
+  gcc_assert (ARGUMENT_PACK_P (deduced));
+  gcc_assert (index == TREE_VEC_LENGTH (wildcards));
+
+  /* Introduce each element in the pack.  */
+  tree args = ARGUMENT_PACK_ARGS (deduced);
+  for (int i = 0; i < TREE_VEC_LENGTH (args); ++i)
+    {
+      tree arg = TREE_VEC_ELT (args, i);
+      if (WILDCARD_PACK_P (arg))
+	parms = introduce_template_parameter_pack (parms, arg);
+      else
+      	parms = introduce_template_parameter (parms, arg);
+    }
+
+  return parms;
+}
+
+/* Builds the template parameter list PARMS by chaining introduced 
+   parameters from the WILDCARD vector.  INDEX is the position of
+   the current parameter.  */
+
+static tree
+process_introduction_parms (tree parms, tree wildcards, int& index)
+{
+  tree proto = get_introdcution_prototype (wildcards, index);
+  if (template_parameter_pack_p (proto))
+    return introduce_template_parameters (parms, wildcards, index);
+  else
+    return introduce_template_parameter (parms, wildcards, index);
+}
+
+/* Associates a constraint check to the current template based on the 
+   introduction parameters.  INTRO_LIST must be a TREE_VEC of WILDCARD_DECLs 
+   containing a chained PARM_DECL which contains the identifier as well as 
+   the source location. TMPL_DECL is the decl for the concept being used.  
+   If we take a concept, C, this will form a check in the form of 
+   C<INTRO_LIST> filling in any extra arguments needed by the defaults 
+   deduced.
+
+   Returns NULL_TREE if no concept could be matched and error_mark_node if 
+   an error occurred when matching.  */
 tree
 finish_template_introduction (tree tmpl_decl, tree intro_list)
 {
-  /* Deduce the concept check.  */
-  tree expr = build_concept_check (tmpl_decl, intro_list, tf_warning_or_error);
+  /* Build a concept check to deduce the actual parameters.  */
+  tree expr = build_concept_check (tmpl_decl, intro_list, tf_none);
   if (expr == error_mark_node)
-    return NULL_TREE;
-
+    {
+      /* FIXME: The source location is wrong.  */
+      error_at (input_location, "cannot deduce template parameters from "
+				"introduction list");
+      return error_mark_node;
+    }
   tree parms = deduce_concept_introduction (expr);
   if (!parms)
     return NULL_TREE;
@@ -1084,9 +1179,14 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
   tree parm_list = NULL_TREE;
   begin_template_parm_list ();
   int nargs = MIN (TREE_VEC_LENGTH (parms), TREE_VEC_LENGTH (intro_list));
-  for (int n = 0; n < nargs; ++n)
-    parm_list = process_introduction_parm (parm_list, TREE_VEC_ELT (parms, n));
+  for (int n = 0; n < nargs; )
+    parm_list = process_introduction_parms (parm_list, parms, n);
   parm_list = end_template_parm_list (parm_list);
+
+  /* Update the number of arguments to reflect the number of introductions.  */
+  nargs = TREE_VEC_LENGTH (parm_list);
+
+  /* Determine if any errors occurred during matching.  */
   for (int i = 0; i < TREE_VEC_LENGTH (parm_list); ++i)
     if (TREE_VALUE (TREE_VEC_ELT (parm_list, i)) == error_mark_node)
       {
@@ -1095,7 +1195,7 @@ finish_template_introduction (tree tmpl_decl, tree intro_list)
       }
 
   /* Build a concept check for our constraint.  */
-  tree check_args = make_tree_vec (TREE_VEC_LENGTH (parms));
+  tree check_args = make_tree_vec (nargs);
   int n = 0;
   for (; n < TREE_VEC_LENGTH (parm_list); ++n)
     {
