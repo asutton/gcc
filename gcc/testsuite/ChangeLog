@@ -1,3 +1,7 @@
+2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+	
+	* gcc/testsuite/g++.dg/cpp2a/concepts-requires16.C: New.
+
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	* gcc/testsuite/g++.dg/cpp2a/concepts-locations1.C: Update diagnostics.

@@ -1,5 +1,19 @@
 2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* constraint.cc (satisfy_conjunction): Handle errors.
+	(satisfy_check): Propagate errors.
+	(satisfaction_value): New. Compute the satisfaction value in the
+	presence of errors.
+	(valid_result_p): New.
+	(satisfy_atom): Handle concept checks early. Propagate errors.
+	(satisfy_expression): Handle null arguments.
+	(diagnose_check): Diagnose ill-formed checks.
+	* pt.c (tsubst_copy_and_build): Build concept checks, not template ids.
+	* semantics.c (finish_id_expression): Variable concepts are just
+	template-ids.
+
+2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Major code cleanup.
 	* constraint.cc: Remove unused constraint processing routines. Replace
 	PRED_CONSTR with ATOMIC_CONSTR. Replace inline namespaces with

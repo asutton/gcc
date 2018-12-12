@@ -3844,13 +3844,15 @@ finish_id_expression (tree id_expression,
     }
 
   /* If this refers to a variable concept, then evaluate it in place. 
+
      FIXME: Why don't we do this with real concepts also? */
   if (!processing_template_decl && TREE_CODE (decl) == TEMPLATE_ID_EXPR)
-  {
-    tree tmpl = TREE_OPERAND (decl, 0);
-    tree args = TREE_OPERAND (decl, 1);
-    if (variable_concept_p (decl))
-      decl = evaluate_variable_concept(tmpl, args);
+    {
+      tree tmpl = TREE_OPERAND (decl, 0);
+      tree args = TREE_OPERAND (decl, 1);
+      if (variable_concept_p (decl))
+	/* FIXME: If evaluation yields a hard error, diagnose it.  */
+	decl = evaluate_variable_concept(tmpl, args);
   }
 
   return cp_expr (decl, location);

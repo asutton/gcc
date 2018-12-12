@@ -18335,7 +18335,7 @@ tsubst_copy_and_build (tree t,
 	  RETURN (lookup_and_finish_template_variable (templ, targs, complain));
 	
 	if (concept_definition_p (templ))
-	  RETURN (build2 (TEMPLATE_ID_EXPR, boolean_type_node, templ, targs));
+	  return build_concept_check(templ, targs, complain);
 
 	if (TREE_CODE (templ) == COMPONENT_REF)
 	  {

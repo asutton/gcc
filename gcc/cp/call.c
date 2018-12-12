@@ -2138,8 +2138,7 @@ add_function_candidate (struct z_candidate **candidates,
 
   /* Second, for a function to be viable, its constraints must be
      satisfied. */
-  if (flag_concepts && viable
-      && !constraints_satisfied_p (fn))
+  if (flag_concepts && viable && !constraints_satisfied_p (fn))
     {
       reason = constraint_failure (fn);
       viable = false;
@@ -4388,17 +4387,15 @@ build_new_function_call (tree fn, vec<tree, va_gc> **args,
           /* If overload resolution selects a specialization of a
              function concept for non-dependent template arguments,
              the expression is true if the constraints are satisfied
-             and false otherwise.
-
-             NOTE: This is an extension of Concepts Lite TS that
-             allows constraints to be used in expressions. */
+             and false otherwise.  */
           if (flag_concepts && !processing_template_decl)
             {
               tree tmpl = DECL_TI_TEMPLATE (cand->fn);
               tree targs = DECL_TI_ARGS (cand->fn);
               tree decl = DECL_TEMPLATE_RESULT (tmpl);
               if (DECL_DECLARED_CONCEPT_P (decl))
-                return evaluate_function_concept (decl, targs);
+		/* FIXME: If evaluation yields a hard error, diagnose that.  */
+		return evaluate_function_concept (decl, targs);
             }
 
           flags |= LOOKUP_EXPLICIT_TMPL_ARGS;

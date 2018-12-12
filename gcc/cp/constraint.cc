@@ -1499,8 +1499,8 @@ static tree
 satisfy_conjunction (tree expr, tree args, subst_info info) 
 {
   tree lhs = satisfy_expression (TREE_OPERAND (expr, 0), args, info);
-  if (lhs == boolean_false_node)
-    return boolean_false_node;
+  if (lhs == error_mark_node || lhs == boolean_false_node)
+    return lhs;
   return satisfy_expression (TREE_OPERAND (expr, 1), args, info);
 }
 
@@ -1516,38 +1516,64 @@ satisfy_disjunction (tree expr, tree args, subst_info info)
 }
 
 /* Compute the satisfaction of an concept check constraint. Note that
-   EXPR is a substituted template-id whose arguments will becoeme the
+   EXPR is a substituted template-id whose arguments will become the
    innermost arguments for the recursive substitution into the
-   definition of named concept.  
-
-   MAPPING is our poor man's approximation of the "parameter mapping" 
-   for atomic constraints; it's the complete set of template
-   arguments that produced the current idexpr. We update the mapping
-   by replacing the innermost arguments with those of the idexpr.  */
+   definition of named concept.  */
 
 static tree
-satisfy_check (tree idexpr, tree mapping, subst_info info)
+satisfy_check (tree expr, tree args, subst_info info)
 {
-  gcc_assert (TREE_CODE (idexpr) == TEMPLATE_ID_EXPR);
-  tree tmpl = TREE_OPERAND (idexpr, 0);
-  tree args = TREE_OPERAND (idexpr, 1);
+  /* Apply the parameter mapping (i.e., just substitute).  However,
+     normalization requires substitution errors into the arguments of
+     a concept to be diagnosed (17.4.3p1.4).  */
+  expr = tsubst_expr (expr, args, info.complain, info.in_decl, false);
+  if (expr == error_mark_node)
+    return error_mark_node;
+
+  gcc_assert (TREE_CODE (expr) == TEMPLATE_ID_EXPR);
+  tree tmpl = TREE_OPERAND (expr, 0);
+  tree targs = TREE_OPERAND (expr, 1);
 
   /* Reconstitute the parameter mapping by making the innermost arguments 
      those instantiated with the concept check.  */
-  int n = TREE_VEC_LENGTH (mapping);
+  int n = TREE_VEC_LENGTH (args);
   tree subst = make_tree_vec (n);
   for (int i = 2; i <= n; ++i)
-    SET_TMPL_ARGS_LEVEL (subst, i, TMPL_ARGS_LEVEL (mapping, i));
-  SET_TMPL_ARGS_LEVEL (subst, 1, args);
+    SET_TMPL_ARGS_LEVEL (subst, i, TMPL_ARGS_LEVEL (args, i));
+  SET_TMPL_ARGS_LEVEL (subst, 1, targs);
 
   gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
   tree def = get_concept_definition (tmpl);
 
   info.in_decl = tmpl;
-  tree result = satisfy_expression (def, subst, info);
-  if (result == boolean_true_node)
-    return boolean_true_node;
-  return boolean_false_node;
+  return satisfy_expression (def, subst, info);
+}
+
+/* Ensures that T is a truth value and not (accidentally, as sometimes 
+   happens) an integer value.  */
+static tree
+satisfaction_value(tree t)
+{
+  if (t == error_mark_node)
+    return t;
+  if (t == boolean_true_node || t == integer_one_node)
+    return t;
+  if (t == boolean_false_node || t == integer_zero_node)
+    return t;
+  /* Anything else should be invalid.  */
+  verbatim ("HERE %qE", t);
+  debug_tree (t);
+  gcc_assert(false);
+}
+
+/* Returns true if T is an expected result of the satisfaction.  */
+
+static bool
+valid_result_p(tree t)
+{
+  return (t == boolean_true_node 
+  	  || t == boolean_false_node 
+  	  || t == error_mark_node);
 }
 
 /* Compute the satisfaction of an atomic constraint.  */
@@ -1555,33 +1581,30 @@ satisfy_check (tree idexpr, tree mapping, subst_info info)
 static tree
 satisfy_atom (tree expr, tree args, subst_info info)
 {
+  /* Handle checks differently than normal atoms.  */
+  if (concept_check_p (expr))
+    return satisfy_check (expr, args, info);
+  
   /* Apply the parameter mapping (i.e., just substitute).  */
- tree result = tsubst_expr (expr, args, info.complain, info.in_decl, false);
+  tree result = tsubst_expr (expr, args, info.complain, info.in_decl, false);
   if (result == error_mark_node)
-    return boolean_false_node;
+    return error_mark_node;
 
-  if (concept_check_p (result))
-    return satisfy_check (result, args, info);
-
-  /* [17.4.1.2] ... lvalue-to-value conversion is performed as
-     necessary, and EXPR shall be a constant expression of type
-     bool. Note that the boolean-ness of atomic constraints is a
-     hard error, but we diagnose it like any other error.  */
-  result = force_rvalue (result, info.complain);
+  /* [17.4.1.2] ... lvalue-to-value conversion is performed as necessary, 
+     and EXPR shall be a constant expression of type bool.  */
+  result = force_rvalue (result, tf_error);
   if (result == error_mark_node)
-    return boolean_false_node;
+    return error_mark_node;
   if (cv_unqualified (TREE_TYPE (result)) != boolean_type_node)
-    return boolean_false_node;
+    return error_mark_node;
 
-  /* If we already computed value, don't try again.  */
+  /* If we already have value, don't bother folding.  */
   if (result == boolean_true_node || result == boolean_false_node)
     return result;
 
   /* Compute the value of the constraint.  */
   result = cxx_constant_value (result);
-  if (result == boolean_true_node)
-    return result;
-  return boolean_false_node;
+  return satisfaction_value(result);
 }
 
 /* Determine if the expression T, when normalized, is satisfied. 
@@ -1609,8 +1632,8 @@ satisfy_atom (tree expr, tree args, subst_info info)
 static tree 
 satisfy_expression (tree expr, tree args, subst_info info)
 {
-  /* Sometimes an invalid parse yields a null expression.
-     Interpret that as false, just so we don't ICE.  */
+  /* Sometimes an invalid parse yields a null expression. Interpret that 
+     as false, just so we don't ICE.  */
   if (!expr)
     return boolean_false_node;
 
@@ -2117,23 +2140,26 @@ get_constraint_location (tree expr)
 void
 diagnose_check (tree expr, tree args, tree in_decl)
 {
+  location_t eloc = get_constraint_location (expr);
+
+  tree orig_expr = expr;
+  expr = tsubst_expr (expr, args, tf_none, in_decl, false);
+  if (expr == error_mark_node)
+    {
+      inform (eloc, "invalid use of the concept %qE", orig_expr);
+      /* FIXME: This produces a correct diagnostic, but it needs to
+         be a note, not a second error.  */
+      /* tsubst_expr (orig_expr, args, tf_error, in_decl, false);  */
+      return;
+    }
+
   gcc_assert (TREE_CODE (expr) == TEMPLATE_ID_EXPR);
   tree tmpl = TREE_OPERAND (expr, 0);
-  tree cargs = TREE_OPERAND (expr, 1);
+  tree targs = TREE_OPERAND (expr, 1);
 
   /* A function concept may be represented as an overload set.  */
   if (OVL_P (tmpl))
     tmpl = OVL_FIRST (tmpl);
-
-  location_t eloc = get_constraint_location (expr);
-
-  /* Instantiate the concept check arguments.  */
-  tree targs = tsubst (cargs, args, tf_none, in_decl);
-  if (targs == error_mark_node)
-    {
-      inform (eloc, "invalid use of the concept %qE", expr);
-      tsubst (cargs, args, tf_warning_or_error, in_decl);
-    }
 
   /* Provide context for the error.  */
   tree subst = build_tree_list (tmpl, targs);
@@ -2493,7 +2519,7 @@ diagnose_constraint (tree expr, tree args, tree in_decl)
     return false;
 
   /* Search for diagnostics.  */
-  if (TREE_CODE (expr) == TEMPLATE_ID_EXPR)
+  if (concept_check_p (expr))
     diagnose_check (expr, args, in_decl);
   else
     diagnose_atom (expr, args, in_decl);
