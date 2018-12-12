@@ -1,5 +1,7 @@
 // { dg-do compile }
-// { dg-options "-std=c++2a" }
+// { dg-options "-std=c++2a -fconcepts-ts" }
+
+// This tests the terse notation.
 
 template<typename T>
 concept True = true;

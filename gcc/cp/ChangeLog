@@ -1,11 +1,17 @@
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* c.opt: Replace -Wconcepts-ts with -fconcepts-ts
+	* parser.c (cp_parser_decl_specifier_seq): Update flag use.
+	(cp_parser_requires_clause_opt): Likewise.
+
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* constraint.cc (normalize_function_concept_check): Re-enable
 	normalization.
 	(cxx_satisfy_check): Use get_concept_definition.
 	(evaluate_function_concept): Build concept check differently.
 	(diagnose_check): Adjust the template for overloads.
-	(cp-tree.h): Move inline functions.
+	* cp-tree.h: Move inline functions.
 
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 

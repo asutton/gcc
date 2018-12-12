@@ -1,5 +1,7 @@
 // { dg-do compile }
-// { dg-options "-std=c++2a -Wno-concepts-ts" }
+// { dg-options "-std=c++2a -fconcepts-ts" }
+
+// Basic tests using function concepts.
 
 template<typename T>
 concept bool Type() { return true; }
