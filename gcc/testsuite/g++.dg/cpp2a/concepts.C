@@ -48,4 +48,4 @@ concept False = false;
 static_assert(True<int>);
 static_assert(False<int>); // { dg-error "static assertion failed" }
 
-
+void f4(True);// { dg-warning "using a concept" }

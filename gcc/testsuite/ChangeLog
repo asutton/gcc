@@ -1,5 +1,9 @@
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* gcc/testsuite/g++.dg/cpp2a/concepts.C: Update diagnostics.
+
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: Update build options.
 	* gcc/testsuite/g++.dg/cpp2a/concepts-ts2.C: Update build options.
 

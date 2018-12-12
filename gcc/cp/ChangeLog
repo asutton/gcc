@@ -1,5 +1,10 @@
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* parser.c (cp_parser_maybe_constrained_type_specifier): Re-enable
+	concepts TS warning.
+
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* c.opt: Replace -Wconcepts-ts with -fconcepts-ts
 	* parser.c (cp_parser_decl_specifier_seq): Update flag use.
 	(cp_parser_requires_clause_opt): Likewise.

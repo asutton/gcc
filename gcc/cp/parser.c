@@ -17988,6 +17988,9 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
       /* Allow `auto` after a concept-id.  */
       if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AUTO))
         cp_lexer_consume_token (parser->lexer);
+      else if (!flag_concepts_ts)
+	warning (0, "using a concept to declare a parameter is only "
+		    "supported with %<-fconcepts%>");
 
       tree parm = build_constrained_parameter (con, proto, args);
       return synthesize_implicit_template_parm (parser, parm);
@@ -17997,7 +18000,7 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
      deduced and the constraint applies after deduction.
 
      FIXME: Warn if auto is not present using some flag for
-     concepts.  */
+     concepts.  Except for for constrained return types.  */
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AUTO))
     cp_lexer_consume_token (parser->lexer);
   
