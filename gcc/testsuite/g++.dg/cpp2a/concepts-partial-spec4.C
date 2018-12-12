@@ -1,3 +1,4 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/partial-spec4.C
 <<<<<<< HEAD
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
@@ -5,8 +6,11 @@
 // needs port; thinks its a var concept
 // { dg-options "-std=c++17 -fconcepts" }
 >>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-partial-spec4.C
 
-template <class T> concept bool is_int = __is_same_as(T,int);
+template <class T> concept is_int = __is_same_as(T,int);
 
 template <class T> struct A { };
 template <is_int T> struct A<T*> {

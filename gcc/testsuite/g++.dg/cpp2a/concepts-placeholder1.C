@@ -1,5 +1,9 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/placeholder1.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-placeholder1.C
 
 template<typename T, typename U>
 struct is_same
@@ -14,19 +18,19 @@ struct is_same<T, T>
 };
 
 template<class T, class U>
-concept bool Same = is_same<T, U>::value;
+concept Same = is_same<T, U>::value;
 
 template<typename T>
-concept bool C1 = true;
+concept C1 = true;
 
 template<typename T, typename U>
-concept bool C2 = true;
+concept C2 = true;
 
 template<typename T>
-concept bool C3() { return true; }
+concept C3 = true;
 
 template<typename T, typename U>
-concept bool C4() { return true; }
+concept C4 = true;
 
 C1      c1 = 0;
 C2<int> c2 = 0;

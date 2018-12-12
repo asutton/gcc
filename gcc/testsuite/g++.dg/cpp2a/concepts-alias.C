@@ -15,9 +15,12 @@ using X = T*;
 template<typename T>
 using Y = X<T>;
 
+template<Class T> using Z = T*;
+
 struct S { };
 
 X<S> x1; // OK
 X<int> x2; // { dg-error "template constraint failure" }
 Y<int> y1; // { dg-error "" "" { xfail *-*-* } }
+Z<S> z1; // ok
 

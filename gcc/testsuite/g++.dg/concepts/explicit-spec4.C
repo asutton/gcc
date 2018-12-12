@@ -1,14 +1,13 @@
-// needs port
 // { dg-do run }
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 #include <cassert>
 
 template<typename T>
-  concept bool C() { return __is_class(T); }
+  concept C = __is_class(T);
 
 template<typename T>
-  concept bool D() { return C<T>() && __is_empty(T); }
+  concept D = C<T> && __is_empty(T);
 
 struct X { } x;
 struct Y { int n; } y;
@@ -18,10 +17,10 @@ int called = 0;
 template<typename T>
   struct S {
     void f() { called = 0; }                 // #1
-    void f() requires C<T>() { called = 0; } // #2
+    void f() requires C<T> { called = 0; } // #2
 
-    void g() requires C<T>() { } // #1
-    void g() requires D<T>() { } // #2
+    void g() requires C<T> { } // #1
+    void g() requires D<T> { } // #2
   };
 
 template<> void S<int>::f() { called = 1; } // Spec of #1

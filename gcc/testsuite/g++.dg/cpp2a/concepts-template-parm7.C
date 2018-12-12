@@ -39,11 +39,11 @@ template<bool... Bs>
   concept C2 = all_of(Bs...);
 
 template<C1... Ts> struct S1 { }; // OK
-S1<int, int, char> s1; // { dg-error "invalid" }
+S1<int, int, char> s1; // { dg-error "constraint failure" }
 template<C1 Ts> struct S2 { }; // { dg-error "variadic constraint"  }
 
 template<C2... Bs> struct S3 { }; // OK
-S3<true, true, false> s3; // { dg-error "invalid" }
+S3<true, true, false> s3; // { dg-error "constraint failure" }
 template<C2 Bs> struct S4 { }; // { dg-error "variadic constraint" }
 
 int main() { }

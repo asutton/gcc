@@ -1,5 +1,5 @@
 // PR c++/59200
-// { dg-options "-std=c++17 -fconcepts" }
+// { dg-options "-std=c++2a" }
 
 struct A
 {

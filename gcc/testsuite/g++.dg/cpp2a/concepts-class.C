@@ -72,13 +72,16 @@ struct S4<T> { static const int value = 2; };
 struct one_type { char x[4]; };
 struct two_type { char x[8]; };
 
-// static_assert(S4<char>::value == 0, "");
+static_assert(S4<char>::value == 0, "");
 static_assert(S4<one_type>::value == 1, "");
 static_assert(S4<two_type>::value == 2, "");
 
 // Specializations are more specialized.
 template<typename T> requires Two<T> struct S5 { };
 template<typename T> requires One<T> struct S5<T> { }; // { dg-error "does not specialize" }
+
+// Constraints are checked even when decls are not instantiatied.
+S5<one_type>* x4b; // { dg-error "constraint|invalid" }
 
 // Deduction guides
 template <class T>

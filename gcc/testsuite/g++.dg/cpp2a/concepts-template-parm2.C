@@ -18,6 +18,6 @@ template<C1 T = char> struct S1 { };
 template<C2 N = 1> struct S2 { };
 template<C3 X = Foo> struct S3 { };
 
-S1<> s1; // { dg-error "invalid" }
-S2<> s2; // { dg-error "invalid" }
-S3<> s3; // { dg-error "invalid" }
+S1<> s1; // { dg-error "constraint failure" }
+S2<> s2; // { dg-error "constraint failure" }
+S3<> s3; // { dg-error "constraint failure" }

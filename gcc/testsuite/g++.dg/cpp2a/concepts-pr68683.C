@@ -1,5 +1,9 @@
+<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/pr68683.C
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
+=======
+// { dg-options "-std=c++2a" }
+>>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-pr68683.C
 
 template <typename, typename>
 struct is_same {
@@ -7,10 +11,10 @@ struct is_same {
 };
 
 template <typename T, typename U>
-concept bool Same = is_same<T, U>::value;
+concept Same = is_same<T, U>::value;
 
 template <typename T>
-concept bool Integral = requires {
+concept Integral = requires {
   { T () } -> Same<typename T::value_type>;
 };
 

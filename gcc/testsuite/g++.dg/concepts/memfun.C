@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 // { dg-do run { target c++17 } }
 // { dg-options "-fconcepts" }
 =======
@@ -6,14 +7,19 @@
 // { dg-do run}
 // { dg-options "-std=c++17 -fconcepts" }
 >>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes
+=======
+// TODO: constrained members of template class improperly ambiguous
+// { dg-do run }
+// { dg-options "-std=c++2a" }
+>>>>>>> eda685858ca... move more ported tests
 
 #include <cassert>
 
 template<typename T>
-  concept bool C() { return __is_class(T); }
+  concept C = __is_class(T);
 
 template<typename T>
-  concept bool D() { return __is_empty(T); }
+  concept D = __is_empty(T);
 
 struct X { } x;
 struct Y { int n; } y;
@@ -23,32 +29,32 @@ int called = 0;
 // Test constrained member definitions
 template<typename T>
   struct S1 {
-    void f1() requires C<T>() { }
+    void f1() requires C<T> { }
 
-    void f2() requires C<T>() { called = 1; }
-    void f2() requires not C<T>() { called = 2; }
+    void f2() requires C<T> { called = 1; }
+    void f2() requires (not C<T>) { called = 2; }
 
     void f3() { called = 1; }
-    void f3() requires C<T>() { called = 2; }
-    void f3() requires C<T>() and D<T>() { called = 3; }
+    void f3() requires C<T> { called = 2; }
+    void f3() requires C<T> and D<T> { called = 3; }
 
-    void g1() requires C<T>() and true;
+    void g1() requires C<T> and true;
 
-    void g2() requires C<T>();
-    void g2() requires not C<T>();
+    void g2() requires C<T>;
+    void g2() requires (not C<T>);
 
     void g3();
-    void g3() requires C<T>();
-    void g3() requires C<T>() and D<T>();
+    void g3() requires C<T>;
+    void g3() requires C<T> and D<T>;
 
     template<C U> void h1(U u) { called = 1; }
     template<C U> void h2(U u);
-    template<C U> void h3(U u) requires D<U>();
+    template<C U> void h3(U u) requires D<U>;
   };
 
 template<C T>
   struct S2 {
-    void f(T) requires D<T>();
+    void f(T) requires D<T>;
   };
 
 
@@ -89,22 +95,22 @@ int main() {
 }
 
 template<typename T>
-  void S1<T>::g1() requires C<T>() and true { }
+  void S1<T>::g1() requires C<T> and true { }
 
 template<typename T>
-  void S1<T>::g2() requires C<T>() { called = 1; }
+  void S1<T>::g2() requires C<T> { called = 1; }
 
 template<typename T>
-  void S1<T>::g2() requires not C<T>() { called = 2; }
+  void S1<T>::g2() requires (not C<T>) { called = 2; }
 
 template<typename T>
   void S1<T>::g3() { called = 1; }
 
 template<typename T>
-  void S1<T>::g3() requires C<T>() { called = 2; }
+  void S1<T>::g3() requires C<T> { called = 2; }
 
 template<typename T>
-  void S1<T>::g3() requires C<T>() and D<T>() { called = 3; }
+  void S1<T>::g3() requires C<T> and D<T> { called = 3; }
 
 template<typename T>
   template<C U>
@@ -112,7 +118,7 @@ template<typename T>
 
 template<typename T>
   template<C U>
-      void S1<T>::h3(U u) requires D<U>() { called = 3; }
+      void S1<T>::h3(U u) requires D<U> { called = 3; }
 
 template<C T>
-  void S2<T>::f(T t) requires D<T>() { called = 4; }
+  void S2<T>::f(T t) requires D<T> { called = 4; }

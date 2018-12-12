@@ -1,13 +1,11 @@
-// { dg-do compile { target c++14 } }
-// { dg-options "-fconcepts" }
+// { dg-do compile }
+// { dg-options "-std=c++2a" }
 
 template <class T>
-concept bool Destructible() {
-    return false;
-}
+concept Destructible = false;
 
 template <class T, class...Args>
-concept bool ConstructibleObject =
+concept ConstructibleObject =
     // Concept evaluation should short-circuit even the template
     // substitution, so we shouldn't even substitute into the requires
     // constraint and the unimplemented multi-dimensional new T{...}
@@ -15,7 +13,7 @@ concept bool ConstructibleObject =
     // sorry() message we used to for such constructs when asked not
     // to issue errors, this shouldn't be a problem for this and
     // similar cases.
-    Destructible<T>() && requires (Args&&...args) {
+    Destructible<T> && requires (Args&&...args) {
         new T{ (Args&&)args... };
     };
 

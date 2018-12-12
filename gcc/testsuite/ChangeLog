@@ -1,3 +1,7 @@
+2018-09-21  Jeffery Chapman  <jchapman@lock3software.com>
+
+	* gcc/testsuite/g++.dg: Migrating tests to cpp2a.
+
 2018-09-20  Jeffery Chapman  <jchapman@lock3software.com>
 
 	* gcc/testsuite/g++.dg: Migrating tests to cpp2a.

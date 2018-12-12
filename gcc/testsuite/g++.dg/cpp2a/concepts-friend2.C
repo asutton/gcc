@@ -11,7 +11,7 @@ template<typename T>
 template<Eq T> struct Foo { };
 
 template<typename T>
-  struct S { // { dg-error "invalid" }
+  struct S { // { dg-error "constraint failure" }
     template<Eq U> friend class Bar;
 
     friend class Foo<T>;
