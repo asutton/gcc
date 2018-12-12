@@ -1226,14 +1226,8 @@ cxx_pretty_printer::expression (tree t)
       pp_cxx_trait_expression (this, t);
       break;
 
-    case PRED_CONSTR:
+    case ATOMIC_CONSTR:
     case CHECK_CONSTR:
-    case EXPR_CONSTR:
-    case TYPE_CONSTR:
-    case ICONV_CONSTR:
-    case DEDUCT_CONSTR:
-    case EXCEPT_CONSTR:
-    case PARM_CONSTR:
     case CONJ_CONSTR:
     case DISJ_CONSTR:
       pp_cxx_constraint (this, t);
@@ -2874,12 +2868,6 @@ pp_cxx_nested_requirement (cxx_pretty_printer *pp, tree t)
 }
 
 void
-pp_cxx_predicate_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp->expression (TREE_OPERAND (t, 0));
-}
-
-void
 pp_cxx_check_constraint (cxx_pretty_printer *pp, tree t)
 {
   tree decl = CHECK_CONSTR_CONCEPT (t);
@@ -2903,76 +2891,18 @@ pp_cxx_check_constraint (cxx_pretty_printer *pp, tree t)
 }
 
 void
-pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
+pp_cxx_atomic_constraint (cxx_pretty_printer *pp, tree t)
 {
-  pp_string (pp, "<valid-expression ");
-  pp_cxx_left_paren (pp);
+  pp_string(pp, "(");
   pp->expression (TREE_OPERAND (t, 0));
-  pp_cxx_right_paren (pp);
-  pp_string (pp, ">");
-}
-
-void
-pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp_string (pp, "<valid-type ");
-  pp->type_id (TREE_OPERAND (t, 0));
-  pp_string (pp, ">");
-}
-
-void
-pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp_string (pp, "<implicitly-conversion ");
-  pp_cxx_left_paren (pp);
-  pp->expression (ICONV_CONSTR_EXPR (t));
-  pp_cxx_right_paren (pp);
-  pp_cxx_ws_string (pp, "to");
-  pp->type_id (ICONV_CONSTR_TYPE (t));
-  pp_string (pp, ">");
-}
-
-void
-pp_cxx_argument_deduction_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp_string (pp, "<argument-deduction ");
-  pp_cxx_left_paren (pp);
-  pp->expression (DEDUCT_CONSTR_EXPR (t));
-  pp_cxx_right_paren (pp);
-  pp_cxx_ws_string (pp, "as");
-  pp->expression (DEDUCT_CONSTR_PATTERN (t));
-  pp_string (pp, ">");
-}
-
-void
-pp_cxx_exception_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp_cxx_ws_string (pp, "noexcept");
-  pp_cxx_whitespace (pp);
-  pp_cxx_left_paren (pp);
-  pp->expression (TREE_OPERAND (t, 0));
-  pp_cxx_right_paren (pp);
-}
-
-void
-pp_cxx_parameterized_constraint (cxx_pretty_printer *pp, tree t)
-{
-  pp_left_paren (pp);
-  pp_string (pp, "<requires ");
-  if (tree parms = PARM_CONSTR_PARMS (t))
-    {
-	pp_cxx_parameter_declaration_clause (pp, parms);
-      pp_cxx_whitespace (pp);
-    }
-  pp_cxx_constraint (pp, PARM_CONSTR_OPERAND (t));
-  pp_string (pp, ">");
+  pp_string(pp, ")");
 }
 
 void
 pp_cxx_conjunction (cxx_pretty_printer *pp, tree t)
 {
   pp_cxx_constraint (pp, TREE_OPERAND (t, 0));
-  pp_string (pp, " and ");
+  pp_string (pp, " /\\ ");
   pp_cxx_constraint (pp, TREE_OPERAND (t, 1));
 }
 
@@ -2980,7 +2910,7 @@ void
 pp_cxx_disjunction (cxx_pretty_printer *pp, tree t)
 {
   pp_cxx_constraint (pp, TREE_OPERAND (t, 0));
-  pp_string (pp, " or ");
+  pp_string (pp, " \\/ ");
   pp_cxx_constraint (pp, TREE_OPERAND (t, 1));
 }
 
@@ -2992,36 +2922,12 @@ pp_cxx_constraint (cxx_pretty_printer *pp, tree t)
 
   switch (TREE_CODE (t))
     {
-    case PRED_CONSTR:
-      pp_cxx_predicate_constraint (pp, t);
+    case ATOMIC_CONSTR:
+      pp_cxx_atomic_constraint (pp, t);
       break;
 
     case CHECK_CONSTR:
       pp_cxx_check_constraint (pp, t);
-      break;
-
-    case EXPR_CONSTR:
-      pp_cxx_expression_constraint (pp, t);
-      break;
-
-    case TYPE_CONSTR:
-      pp_cxx_type_constraint (pp, t);
-      break;
-
-    case ICONV_CONSTR:
-      pp_cxx_implicit_conversion_constraint (pp, t);
-      break;
-
-    case DEDUCT_CONSTR:
-      pp_cxx_argument_deduction_constraint (pp, t);
-      break;
-
-    case EXCEPT_CONSTR:
-      pp_cxx_exception_constraint (pp, t);
-      break;
-
-    case PARM_CONSTR:
-      pp_cxx_parameterized_constraint (pp, t);
       break;
 
     case CONJ_CONSTR:
@@ -3040,7 +2946,6 @@ pp_cxx_constraint (cxx_pretty_printer *pp, tree t)
       gcc_unreachable ();
     }
 }
-
 
 
 typedef c_pretty_print_fn pp_fun;

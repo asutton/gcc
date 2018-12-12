@@ -1487,8 +1487,8 @@ check_constraint_info (tree t)
   DECL_SIZE_UNIT (TYPE_NAME (NODE))
 
 /* The expression evaluated by the predicate constraint. */
-#define PRED_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PRED_CONSTR), 0)
+#define ATOMIC_CONSTR_EXPR(NODE) \
+  TREE_OPERAND (TREE_CHECK (NODE, ATOMIC_CONSTR), 0)
 
 /* The concept of a concept check. */
 #define CHECK_CONSTR_CONCEPT(NODE) \
@@ -1497,46 +1497,6 @@ check_constraint_info (tree t)
 /* The template arguments of a concept check. */
 #define CHECK_CONSTR_ARGS(NODE) \
   TREE_OPERAND (TREE_CHECK (NODE, CHECK_CONSTR), 1)
-
-/* The expression validated by the predicate constraint. */
-#define EXPR_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, EXPR_CONSTR), 0)
-
-/* The type validated by the predicate constraint. */
-#define TYPE_CONSTR_TYPE(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, TYPE_CONSTR), 0)
-
-/* In an implicit conversion constraint, the source expression. */
-#define ICONV_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, ICONV_CONSTR), 0)
-
-/* In an implicit conversion constraint, the target type. */
-#define ICONV_CONSTR_TYPE(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, ICONV_CONSTR), 1)
-
-/* In an argument deduction constraint, the source expression. */
-#define DEDUCT_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 0)
-
-/* In an argument deduction constraint, the target type pattern. */
-#define DEDUCT_CONSTR_PATTERN(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 1)
-
-/* In an argument deduction constraint, the list of placeholder nodes. */
-#define DEDUCT_CONSTR_PLACEHOLDER(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 2)
-
-/* The expression of an exception constraint. */
-#define EXCEPT_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, EXCEPT_CONSTR), 0)
-
-/* In a parameterized constraint, the local parameters. */
-#define PARM_CONSTR_PARMS(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PARM_CONSTR), 0)
-
-/* In a parameterized constraint, the operand. */
-#define PARM_CONSTR_OPERAND(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PARM_CONSTR), 1)
 
 /* Whether a PARM_DECL represents a local parameter in a
    requires-expression.  */
@@ -7569,9 +7529,6 @@ extern tree finish_constraint_and_expr          (location_t, tree, tree);
 extern tree finish_constraint_primary_expr      (location_t, tree);
 extern tree start_concept_definition            (location_t, tree);
 extern tree finish_concept_definition           (tree, tree);
-extern bool constraint_p                        (tree);
-extern tree conjoin_constraints                 (tree, tree);
-extern tree conjoin_constraints                 (tree);
 extern tree combine_constraint_expressions      (tree, tree);
 extern tree get_constraints                     (tree);
 extern void set_constraints                     (tree, tree);

@@ -72,7 +72,7 @@ parameter_mapping_equivalent_p (tree t1, tree t2)
 static bool
 constraint_identical_p (tree t1, tree t2)
 {
-  if (PRED_CONSTR_EXPR (t1) != PRED_CONSTR_EXPR (t2))
+  if (ATOMIC_CONSTR_EXPR (t1) != ATOMIC_CONSTR_EXPR (t2))
     return false;
 
   if (!parameter_mapping_equivalent_p (t1, t2))
@@ -85,7 +85,7 @@ static hashval_t
 hash_atomic_constraint (tree t)
 {
   /* Hash the identity of the expression.  */
-  hashval_t val = htab_hash_pointer (PRED_CONSTR_EXPR (t));
+  hashval_t val = htab_hash_pointer (ATOMIC_CONSTR_EXPR (t));
     
   /* Hash the targets of the parameter map.  */
   tree p = TREE_TYPE (t);
@@ -130,7 +130,7 @@ struct clause
   clause (tree t)
   {
     m_terms.push_back (t);
-    if (TREE_CODE (t) == PRED_CONSTR)
+    if (TREE_CODE (t) == ATOMIC_CONSTR)
       m_set.add (t);
 
     m_current = m_terms.begin();
@@ -170,8 +170,8 @@ struct clause
 
   std::pair<iterator, bool> replace (iterator iter, tree t)
   {
-    gcc_assert (TREE_CODE (*iter) != PRED_CONSTR);
-    if (TREE_CODE (t) == PRED_CONSTR)
+    gcc_assert (TREE_CODE (*iter) != ATOMIC_CONSTR);
+    if (TREE_CODE (t) == ATOMIC_CONSTR)
       {
 	if (m_set.add (t))
 	  return std::make_pair (m_terms.erase(iter), true);
@@ -189,7 +189,7 @@ struct clause
 
   std::pair<iterator, bool> insert (iterator iter, tree t)
   {
-    if (TREE_CODE (t) == PRED_CONSTR)
+    if (TREE_CODE (t) == ATOMIC_CONSTR)
     {
       if (m_set.add (t))
       	return std::make_pair (iter, false);
@@ -230,7 +230,7 @@ struct clause
 
   bool contains (tree t)
   {
-    gcc_assert (TREE_CODE (t) == PRED_CONSTR);
+    gcc_assert (TREE_CODE (t) == ATOMIC_CONSTR);
     return m_set.contains (t);
   }
 

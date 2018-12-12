@@ -1,3 +1,18 @@
+2018-10-13  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Major code cleanup.
+	* constraint.cc: Remove unused constraint processing routines. Replace
+	PRED_CONSTR with ATOMIC_CONSTR. Replace inline namespaces with
+	static functions. Rename cxx_satisfy functions to plain satisfy.
+	* cp-objcp-common.c (cp_common_init_ts): Rename PRED_CONSTR to
+	ATOMIC_CONSTR.
+	* cp-tree.def: Likewise. Remove unused _CONSTR nodes. 
+	* cp-tree.h: Likewise. Remove unused _CONSTR macros and removed
+	constraint functions.
+	* cxx-pretty-print.c: Remove constraint processing code.
+	* error.c: Likewise.
+	* logic.cc: Replace PRED_CONSTR with ATOMIC_CONSTR.
+
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	* constraint.cc (evaluate_variable_concept): Build expressions for

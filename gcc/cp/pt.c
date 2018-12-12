@@ -11865,6 +11865,7 @@ gen_elem_of_pack_expansion_instantiation (tree pattern,
     t = tsubst_decl (pattern, args, complain);
   else if (pattern == error_mark_node)
     t = error_mark_node;
+  /* FIXME: We shouldn't get constraints here.
   else if (constraint_p (pattern))
     {
       if (processing_template_decl)
@@ -11873,6 +11874,7 @@ gen_elem_of_pack_expansion_instantiation (tree pattern,
 	t = (constraints_satisfied_p (pattern, args)
 	     ? boolean_true_node : boolean_false_node);
     }
+  */
   else if (!TYPE_P (pattern))
     t = tsubst_expr (pattern, args, complain, in_decl,
 		     /*integral_constant_expression_p=*/false);
