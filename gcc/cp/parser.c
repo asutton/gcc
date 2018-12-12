@@ -16323,7 +16323,7 @@ cp_parser_template_id (cp_parser *parser,
 							templ, 
 							arguments);
       if (!template_id)
-      	template_id = build_concept_check (templ, arguments, tf_none);
+	template_id = build_concept_check (templ, arguments, tf_none);
       if (TREE_CODE (template_id) == TEMPLATE_ID_EXPR)
 	SET_EXPR_LOCATION (template_id, combined_loc);
     }

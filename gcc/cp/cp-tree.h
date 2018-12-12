@@ -40,6 +40,8 @@ c-common.h, not after.
 #include "c-family/c-common.h"
 #include "diagnostic.h"
 
+#include "print-tree.h"
+
 /* A tree node, together with a location, so that we can track locations
    (and ranges) during parsing.
 
@@ -6076,66 +6078,6 @@ class_of_this_parm (const_tree fntype)
   return TREE_TYPE (type_of_this_parm (fntype));
 }
 
-/* True iff T is a variable template declaration. */
-inline bool
-variable_template_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (!PRIMARY_TEMPLATE_P (t))
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_P (r);
-  return false;
-}
-
-/* True iff T is a variable concept definition. That is, T is
-   a variable template declared with the concept specifier.  */
-
-inline bool
-variable_concept_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
-}
-
-/* True iff T is a concept definition. That is, T is a variable or function
-   template declared with the concept specifier.  */
-
-inline bool
-concept_template_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_OR_FUNCTION_DECL_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
-}
-
-/* True iff T is a C++2A-style concept definition or a template that
-   defines the concept.  */
-
-inline bool
-concept_definition_p (const_tree t)
-{
-  if (TREE_CODE (t) == TEMPLATE_DECL)
-    t = DECL_TEMPLATE_RESULT (t);
-  return TREE_CODE (t) == CONCEPT_DECL;
-}
-
-/* True if t is a template-id that refers to concept definition.  */
-
-inline bool
-concept_check_p (const_tree t)
-{
-  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
-    return concept_definition_p (TREE_OPERAND (t, 0));
-  return false;
-}
-
 /* A parameter list indicating for a function with no parameters,
    e.g  "int f(void)".  */
 extern cp_parameter_declarator *no_parameters;
@@ -7790,6 +7732,86 @@ null_node_p (const_tree expr)
 {
   STRIP_ANY_LOCATION_WRAPPER (expr);
   return expr == null_node;
+}
+
+/* True iff T is a variable template declaration. */
+inline bool
+variable_template_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (!PRIMARY_TEMPLATE_P (t))
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_P (r);
+  return false;
+}
+
+/* True iff T is a variable concept definition. That is, T is
+   a variable template declared with the concept specifier.  */
+
+inline bool
+variable_concept_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a concept definition. That is, T is a variable or function
+   template declared with the concept specifier.  */
+
+inline bool
+concept_template_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_OR_FUNCTION_DECL_P (r) && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a concept definition or a template that defines the 
+   concept. This will also return true for concepts-ts style concepts.  */
+
+inline bool
+concept_definition_p (const_tree t)
+{
+  if (t == error_mark_node)
+    return false;
+
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  
+  /* The obvious and easy case.  */
+  if (TREE_CODE (t) == CONCEPT_DECL)
+    return true;
+  
+  /* Adjust overloads if needed.  */
+  if (BASELINK_P (t))
+    t = BASELINK_FUNCTIONS (t);
+  if (OVL_P (t))
+    t = OVL_FIRST ((tree)t);
+
+  /* Definitely not a concept.  */
+  if (!VAR_OR_FUNCTION_DECL_P (t))
+    return false;
+  if (!DECL_LANG_SPECIFIC (t))
+    return false;
+  
+  return DECL_DECLARED_CONCEPT_P (t);
+}
+
+/* True if t is a template-id that refers to concept definition.  */
+
+inline bool
+concept_check_p (const_tree t)
+{
+  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
+    return concept_definition_p (TREE_OPERAND (t, 0));
+  return false;
 }
 
 #if CHECKING_P

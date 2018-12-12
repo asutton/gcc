@@ -793,9 +793,7 @@ normalize_function_concept_check (tree t, tree args, subst_info info)
   tree fn = TREE_VALUE (check);
   tree def = get_concept_definition (fn);
   
-  /* FIXME: Use args as the new parameter mapping.  */
-  // return normalize_expression (def, subst, info);
-  gcc_assert (false);
+  return normalize_expression (def, subst, info);
 }
 
 tree
@@ -2290,7 +2288,7 @@ cxx_satisfy_check (tree idexpr, tree mapping, subst_info info)
   SET_TMPL_ARGS_LEVEL (subst, 1, args);
 
   gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
-  tree def = DECL_INITIAL (DECL_TEMPLATE_RESULT (tmpl));
+  tree def = get_concept_definition (tmpl);
 
   info.in_decl = tmpl;
   tree result = cxx_satisfy_expression (def, subst, info);
@@ -2455,9 +2453,8 @@ evaluate_concept (tree c, tree args)
 tree
 evaluate_function_concept (tree fn, tree args)
 {
-  gcc_assert (false);
-  tree constr = build_nt (CHECK_CONSTR, fn, args);
-  return satisfy_constraint (constr, args);
+  tree t = build_nt (TEMPLATE_ID_EXPR, DECL_TI_TEMPLATE (fn), args);
+  return satisfy_constraint (t, args);
 }
 
 /* Evaluate the variable concept VAR by substituting its own args into
@@ -2874,6 +2871,10 @@ diagnose_check (tree expr, tree args, tree in_decl)
   gcc_assert (TREE_CODE (expr) == TEMPLATE_ID_EXPR);
   tree tmpl = TREE_OPERAND (expr, 0);
   tree cargs = TREE_OPERAND (expr, 1);
+
+  /* A function concept may be represented as an overload set.  */
+  if (OVL_P (tmpl))
+    tmpl = OVL_FIRST (tmpl);
 
   location_t eloc = get_constraint_location (expr);
 
