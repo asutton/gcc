@@ -45,6 +45,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gomp-constants.h"
 #include "predict.h"
 #include "memmodel.h"
+#include "print-tree.h"
 
 /* There routines provide a modular interface to perform many parsing
    operations.  They may therefore be used during actual parsing, or
@@ -3841,6 +3842,16 @@ finish_id_expression (tree id_expression,
 	  decl = convert_from_reference (decl);
 	}
     }
+
+  /* If this refers to a variable concept, then evaluate it in place. 
+     FIXME: Why don't we do this with real concepts also? */
+  if (!processing_template_decl && TREE_CODE (decl) == TEMPLATE_ID_EXPR)
+  {
+    tree tmpl = TREE_OPERAND (decl, 0);
+    tree args = TREE_OPERAND (decl, 1);
+    if (variable_concept_p (decl))
+      decl = evaluate_variable_concept(tmpl, args);
+  }
 
   return cp_expr (decl, location);
 }

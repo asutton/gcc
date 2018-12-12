@@ -2465,8 +2465,7 @@ evaluate_function_concept (tree fn, tree args)
 tree
 evaluate_variable_concept (tree var, tree args)
 {
-  gcc_assert (false);
-  tree constr = build_nt (CHECK_CONSTR, var, args);
+  tree constr = build_nt (TEMPLATE_ID_EXPR, DECL_TI_TEMPLATE (var), args);
   return satisfy_constraint (constr, args);
 }
 

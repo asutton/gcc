@@ -9862,12 +9862,6 @@ finish_template_variable (tree var, tsubst_flags_t complain)
   tree templ = TREE_OPERAND (var, 0);
   tree arglist = TREE_OPERAND (var, 1);
 
-  /* We never want to return a VAR_DECL for a variable concept, since they
-     aren't instantiated.  In a template, leave the TEMPLATE_ID_EXPR alone.  */
-  bool concept_p = flag_concepts && variable_concept_p (templ);
-  if (concept_p && processing_template_decl)
-    return var;
-
   tree tmpl_args = DECL_TI_ARGS (DECL_TEMPLATE_RESULT (templ));
   arglist = add_outermost_template_args (tmpl_args, arglist);
 
@@ -9888,18 +9882,12 @@ finish_template_variable (tree var, tsubst_flags_t complain)
       return error_mark_node;
     }
 
-  /* If a template-id refers to a specialization of a variable
-     concept, then the expression is true if and only if the
-     concept's constraints are satisfied by the given template
-     arguments.
+  /* We never want to return a VAR_DECL for a variable concept, since 
+     they aren't instantiated.  Rebuild the id-expr with the converted
+     arguments.  */
 
-     NOTE: This is an extension of Concepts Lite TS that
-     allows constraints to be used in expressions. */
-  if (concept_p)
-    {
-      tree decl = DECL_TEMPLATE_RESULT (templ);
-      return evaluate_variable_concept (decl, arglist);
-    }
+  if (flag_concepts && variable_concept_p (templ))
+    return build2 (TEMPLATE_ID_EXPR, boolean_type_node, templ, arglist);
 
   return instantiate_template (templ, arglist, complain);
 }

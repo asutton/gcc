@@ -1,5 +1,14 @@
 2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	* constraint.cc (evaluate_variable_concept): Build expressions for
+	checks.
+	* pt.c (finish_template_variable): Rethink processing of variable
+	concepts.
+	(finish_id_expression): Evaluate variable concepts as part of
+	id-expression processing.
+
+2018-09-26  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	* parser.c (cp_parser_maybe_constrained_type_specifier): Re-enable
 	concepts TS warning.
 
