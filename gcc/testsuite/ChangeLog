@@ -1,3 +1,10 @@
+2018-09-12  Jeffery Chapman  <jchapman@lock3software.com>
+
+	* gcc/testsuite/g++.dg/concepts/alias1.C: Deleted.
+	* gcc/testsuite/g++.dg/concepts/alias2.C: Deleted.
+	* gcc/testsuite/g++.dg/concepts/alias3.C: Deleted.
+	* gcc/testsuite/g++.dg/concepts/alias4.C: Deleted.
+
 2018-09-25  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	* gcc/testsuite/g++.dg/cpp2a/concepts-ts1.C: New.
