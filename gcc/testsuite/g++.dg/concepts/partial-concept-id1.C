@@ -1,14 +1,5 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 // { dg-do compile { target c++17 } }
 // { dg-options "-fconcepts" }
-=======
-// needs fixed; ICE on line 23
-=======
-// needs fixed; expected identifier on 31 before concept name?
->>>>>>> eda685858ca... move more ported tests
-// { dg-options "-std=c++2a" }
->>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes
 
 template<typename T>
   concept Type = true;
