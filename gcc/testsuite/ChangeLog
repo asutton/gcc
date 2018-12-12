@@ -1,3 +1,7 @@
+2018-09-20  Jeffery Chapman  <jchapman@lock3software.com>
+
+	* gcc/testsuite/g++.dg: Updating tests.
+
 2018-09-14  Jeffery Chapman  <jchapman@lock3software.com>
 
 	* gcc/testsuite/g++.dg: Migrate PR tests to cpp2a.

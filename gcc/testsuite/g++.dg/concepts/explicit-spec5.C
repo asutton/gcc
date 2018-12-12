@@ -1,5 +1,5 @@
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
+// needs port
+// { dg-options "-std=c++17 -fconcepts" }
 
 #include <cassert>
 
