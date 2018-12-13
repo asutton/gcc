@@ -1,3 +1,8 @@
+2018-10-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Add missing test.
+	* g++.dg/cpp2a/concepts3.C: Add access checking tests.
+
 2018-10-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix issues with concept evaluation.
