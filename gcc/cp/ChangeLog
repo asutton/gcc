@@ -1,5 +1,17 @@
 2018-10-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Cleanups from building in bootstrap.
+	* constraint.cc (expand_concept): Removed; no longer used.
+	(normalize_*): Make internal functions static.
+	(normalize_atom): Remove unused check for constraints.
+	(build_constraint_info): Remove the surrounding inline namespace
+	and make the function static.
+	* cp-tree.h: (expand_concept): Removed; no longer used. 
+	(concept_definition_p) Overload and use const_cast to suppress 
+	warnings about explicit casts that remove cv-quals.
+
+2018-10-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Defer access checks requirement checking.
 	* constraint.cc (tsubst_valid_expression_requirement): New. Defer
 	access checks in substitution.

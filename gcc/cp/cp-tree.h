@@ -7563,7 +7563,6 @@ extern tree tsubst_requires_expr                (tree, tree, tsubst_flags_t, tre
 extern tree tsubst_constraint                   (tree, tree, tsubst_flags_t, tree);
 extern tree tsubst_constraint_info              (tree, tree, tsubst_flags_t, tree);
 extern bool function_concept_check_p            (tree);
-extern tree expand_concept                      (tree, tree);
 
 struct parsing_constraint_expression_sentinel
 {
@@ -7751,7 +7750,7 @@ concept_template_p (tree t)
    concept. This will also return true for concepts-ts style concepts.  */
 
 inline bool
-concept_definition_p (const_tree t)
+concept_definition_p (tree t)
 {
   if (t == error_mark_node)
     return false;
@@ -7767,7 +7766,7 @@ concept_definition_p (const_tree t)
   if (BASELINK_P (t))
     t = BASELINK_FUNCTIONS (t);
   if (OVL_P (t))
-    t = OVL_FIRST ((tree)t);
+    t = OVL_FIRST (const_cast<tree>(t));
 
   /* Definitely not a concept.  */
   if (!VAR_OR_FUNCTION_DECL_P (t))
@@ -7776,6 +7775,13 @@ concept_definition_p (const_tree t)
     return false;
   
   return DECL_DECLARED_CONCEPT_P (t);
+}
+
+/* Same as above, but for const trees.  */
+inline bool
+concept_definition_p (const_tree t)
+{
+  return concept_definition_p (const_cast<tree> (t));
 }
 
 /* True if t is a template-id that refers to concept definition.  */

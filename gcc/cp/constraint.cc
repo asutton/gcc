@@ -488,18 +488,6 @@ get_concept_definition (tree decl)
   gcc_unreachable ();
 }
 
-/* Expand a concept-definition by returning its initializer.  */
-
-tree
-expand_concept (tree tmpl, tree args)
-{
-  gcc_assert (TREE_CODE (tmpl) == TEMPLATE_DECL);
-  gcc_assert (concept_definition_p (tmpl));
-
-  return get_concept_definition (tmpl);
-}
-
-
 /*---------------------------------------------------------------------------
 		Stepwise normalization of expressions
 
@@ -512,7 +500,7 @@ static tree normalize_expression (tree, tree, subst_info);
 /* Transform a logical-or or logical-and expression into either
    a conjunction or disjunction. */
 
-tree
+static tree
 normalize_logical_operation (tree t, tree args, tree_code c, subst_info info)
 {
   tree t0 = normalize_expression (TREE_OPERAND (t, 0), args, info);
@@ -523,9 +511,13 @@ normalize_logical_operation (tree t, tree args, tree_code c, subst_info info)
 /* For a template-id referring to a variable concept, returns
    a check constraint. Otherwise, returns a predicate constraint. */
 
-tree
-normalize_variable_concept_check (tree t, tree args, subst_info info)
+static tree
+normalize_variable_concept_check (tree t, tree, subst_info)
 {
+  /* FIXME: This is never actually called. Remove this or merge it
+     into normalize_concept_check. */
+  gcc_assert (false);
+  
   tree tmpl = TREE_OPERAND (t, 0);
   tree check;
   if (concept_definition_p (tmpl))
@@ -561,9 +553,13 @@ normalize_variable_concept_check (tree t, tree args, subst_info info)
 /* For a call expression to a function concept, returns a check
    constraint. Otherwise, returns a predicate constraint. */
 
-tree
-normalize_function_concept_check (tree t, tree args, subst_info info)
+static tree
+normalize_function_concept_check (tree t, tree, subst_info info)
 {
+  /* This is likely never called, but it should be since we have
+     to do overload resolution for function concepts (right?). */
+  gcc_assert (false);
+
   /* Try to resolve this function call as a concept.  If not, then
      it can be returned as a predicate constraint.  */
   tree check = resolve_constraint_check (t);
@@ -583,8 +579,8 @@ normalize_function_concept_check (tree t, tree args, subst_info info)
   return normalize_expression (def, subst, info);
 }
 
-tree
-normalize_concept_check (tree t, tree args, subst_info info)
+static tree
+normalize_concept_check (tree t, tree, subst_info info)
 {
   tree tmpl = TREE_OPERAND (t, 0);
   tree parms = TREE_VALUE (DECL_TEMPLATE_PARMS (tmpl));
@@ -595,9 +591,11 @@ normalize_concept_check (tree t, tree args, subst_info info)
   return normalize_expression (def, subst, info);
 }
 
-/* Push down the pack expansion EXP into the leaves of the constraint PAT.  */
+/* Push down the pack expansion EXP into the leaves of the constraint PAT. 
 
-tree
+   FIXME: Is this ever called? */
+
+static tree
 push_down_pack_expansion (tree exp, tree pat)
 {
   switch (TREE_CODE (pat))
@@ -623,9 +621,11 @@ push_down_pack_expansion (tree exp, tree pat)
 
 /* Transform a pack expansion into a constraint.  First we transform the
    pattern of the pack expansion, then we push the pack expansion down into the
-   leaves of the constraint so that partial ordering will work.  */
+   leaves of the constraint so that partial ordering will work.  
 
-tree
+   FIXME: Is this ever called? */
+
+static tree
 normalize_pack_expansion (tree t, tree args, subst_info info)
 {
   tree pat = normalize_expression (PACK_EXPANSION_PATTERN (t), args, info);
@@ -663,15 +663,11 @@ build_parameter_mapping (tree expr, tree args)
    concept is a check constraint for that concept. Otherwise, the
    constraint is a predicate constraint.  */
 
-tree
+static tree
 normalize_atom (tree t, tree args, subst_info info)
 {
   /* We can get constraints pushed down through pack expansions, so
      just return them.  */
-#if 0
-  if (constraint_p (t))
-    return t;
-#endif
 
   /* Concept checks are not atomic.  */
   if (concept_check_p (t))
@@ -692,7 +688,7 @@ normalize_atom (tree t, tree args, subst_info info)
 
 /* Returns the normal form of an expression. */
 
-tree
+static tree
 normalize_expression (tree t, tree args, subst_info info)
 {
   if (!t)
@@ -768,16 +764,13 @@ associate_classtype_constraints (tree type)
   return type;
 }
 
-namespace {
+/* Create an empty constraint info block.  */
 
-// Create an empty constraint info block.
-inline tree_constraint_info*
+static inline tree_constraint_info*
 build_constraint_info ()
 {
   return (tree_constraint_info *)make_node (CONSTRAINT_INFO);
 }
-
-} // namespace
 
 /* Build a constraint-info object that contains the associated constraints
    of a declaration.  This also includes the declaration's template
@@ -1088,7 +1081,6 @@ introduce_template_parameter(tree parms, tree wildcard)
 static tree
 introduce_template_parameter_pack(tree parms, tree wildcard)
 {
-  bool ellipsis_p;
   bool non_type_p;
   tree parm = build_introduced_template_parameter (wildcard, non_type_p);
   location_t loc = DECL_SOURCE_LOCATION (wildcard);
@@ -1839,11 +1831,8 @@ evaluate_concept_check (tree check)
   
   gcc_assert (TREE_CODE (check) == TEMPLATE_ID_EXPR);
   
-  tree tmpl = TREE_OPERAND (check, 0);
-  tree args = TREE_OPERAND (check, 1);
-  
   /* If the arguments are dependent in any way, preserve the check.  */
-  if (uses_template_parms (args))
+  if (uses_template_parms (TREE_OPERAND (check, 1)))
     return check;
 
   tree result = satisfy_constraint (check, NULL_TREE);
@@ -2628,7 +2617,7 @@ diagnose_atom (tree expr, tree args, tree in_decl)
     return;
   if (cv_unqualified (TREE_TYPE (result)) != boolean_type_node)
     {
-      inform (loc, "atomic constraint does not have type %<bool%>", expr);
+      inform (loc, "atomic constraint %qE does not have type %<bool%>", expr);
       return;
     }
 
