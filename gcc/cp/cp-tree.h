@@ -7572,8 +7572,10 @@ struct parsing_constraint_expression_sentinel
 };
 
 extern bool parsing_constraint_expression_p	();
+extern bool satisfying_constraint_p		();
 
 extern tree evaluate_constraints                (tree, tree);
+extern tree evaluate_concept_check              (tree);
 extern tree evaluate_concept                    (tree, tree);
 extern tree evaluate_function_concept           (tree, tree);
 extern tree evaluate_variable_concept           (tree, tree);
@@ -7714,6 +7716,21 @@ variable_concept_p (tree t)
     return false;
   if (tree r = DECL_TEMPLATE_RESULT (t))
     return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a function concept definition. That is, T is
+   a function template declared with the concept specifier.  */
+
+inline bool
+function_concept_p (tree t)
+{
+  if (TREE_CODE (t) == OVERLOAD)
+    t = OVL_FIRST (t);
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return TREE_CODE (r) == FUNCTION_DECL && DECL_DECLARED_CONCEPT_P (r);
   return false;
 }
 

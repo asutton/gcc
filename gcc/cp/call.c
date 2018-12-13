@@ -4394,7 +4394,6 @@ build_new_function_call (tree fn, vec<tree, va_gc> **args,
               tree targs = DECL_TI_ARGS (cand->fn);
               tree decl = DECL_TEMPLATE_RESULT (tmpl);
               if (DECL_DECLARED_CONCEPT_P (decl))
-		/* FIXME: If evaluation yields a hard error, diagnose that.  */
 		return evaluate_function_concept (decl, targs);
             }
 

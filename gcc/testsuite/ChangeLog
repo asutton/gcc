@@ -1,3 +1,11 @@
+2018-10-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix issues with concept evaluation.
+	* g++.dg/cpp2a/concepts-requires5.C: Update diagnostics.
+	* g++.dg/cpp2a/concepts1.C: Added.
+	* g++.dg/cpp2a/concepts2.C: Added.
+	* g++.dg/cpp2a/concepts3.C: Deleted.
+
 2018-10-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Rewrite introduction processing.

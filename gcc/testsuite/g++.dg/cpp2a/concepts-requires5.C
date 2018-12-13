@@ -40,6 +40,6 @@ class D : /*private*/ B { };
 
 void driver_2()
 {
-  static_assert(ConvertibleTo<D, B>()); // { dg-error "not a function" }
+  static_assert(ConvertibleTo<D, B>()); // { dg-error "cannot be used as a function" }
   static_assert(ConvertibleTo<D, B>); // { dg-error "static assertion failed" }
 }

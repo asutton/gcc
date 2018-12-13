@@ -3843,17 +3843,13 @@ finish_id_expression (tree id_expression,
 	}
     }
 
-  /* If this refers to a variable concept, then evaluate it in place. 
-
-     FIXME: Why don't we do this with real concepts also? */
-  if (!processing_template_decl && TREE_CODE (decl) == TEMPLATE_ID_EXPR)
+  /* If this is a concept check, potentially evaluate it.  */
+  if (TREE_CODE (decl) == TEMPLATE_ID_EXPR)
     {
-      tree tmpl = TREE_OPERAND (decl, 0);
       tree args = TREE_OPERAND (decl, 1);
-      if (variable_concept_p (decl))
-	/* FIXME: If evaluation yields a hard error, diagnose it.  */
-	decl = evaluate_variable_concept(tmpl, args);
-  }
+      if (concept_check_p (decl) && !uses_template_parms (args))
+	decl = evaluate_concept_check (decl);
+    }
 
   return cp_expr (decl, location);
 }
@@ -9215,7 +9211,6 @@ finish_static_assert (tree condition, tree message, location_t location,
   else 
     {
       location_t saved_loc = input_location;
-
       input_location = location;
       if (TREE_CODE (condition) == INTEGER_CST 
           && integer_zerop (condition))
@@ -9232,6 +9227,7 @@ finish_static_assert (tree condition, tree message, location_t location,
 	}
       else if (condition && condition != error_mark_node)
 	{
+          debug_tree (condition);
 	  error ("non-constant condition for static assertion");
 	  if (require_rvalue_constant_expression (condition))
 	    cxx_constant_value (condition);

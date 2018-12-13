@@ -1,3 +1,22 @@
+2018-10-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Fix issues with concept evaluation.
+	* constraint.cc (satisfying_constraint_p): New.
+	(satisfy_disjunction): Guard against recursive evaluation of
+	constraints when instantiating concept checks.
+	(satisfy_associated_constraints):  Disable memoization.
+	(evaluate_concept_check): New.
+	(evaluate_concept): Use evaluate_concept_check.
+	(evaluate_function_concept): Likewise.
+	(evaluate_variable_concept): Likewise.
+	(diagnose_check): Guard against recursive evaluation.
+	* cp-tree.h (satisfying_constraint_p): New.
+	(evaluate_concept_check): New.
+	(function_concept_p): New.
+	* pt.c (tsubst_copy_and_build): Guard against recursive instantiation.
+	* semantics.c (finish_id_expression): Don't evaluate dependent
+	checks.
+
 2018-10-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Rewrite introduction processing.

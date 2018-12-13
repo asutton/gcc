@@ -555,9 +555,6 @@ normalize_variable_concept_check (tree t, tree args, subst_info info)
     }
 
    gcc_assert (false);
-  // tree decl = TREE_VALUE (info);
-  // tree args = TREE_PURPOSE (info);
-  // return build_nt (CHECK_CONSTR, decl, args);
 }
 
 /* For a call expression to a function concept, returns a check
@@ -931,9 +928,7 @@ build_constrained_parameter (tree cnc, tree proto, tree args)
    for the layout of that TYPE_DECL).
 
    Note that the constraints are neither reduced nor decomposed. That is 
-   done only after the requires clause has been parsed (or not).
-
-   This will always return a CHECK_CONSTR. */
+   done only after the requires clause has been parsed (or not).  */
 tree
 finish_shorthand_constraint (tree decl, tree constr)
 {
@@ -1586,6 +1581,22 @@ tsubst_constraint_info (tree t, tree args,
 			Constraint satisfaction
 ---------------------------------------------------------------------------*/
 
+static int satisfying_constraint = 0;
+
+/* Returns true if we are currently satisfying a constraint.  
+
+   This is used to guard against recursive calls to evaluate_concept_check
+   during template argument substitution.
+
+   TODO: Do we get equivalent behavior if we allow substitution to
+   recursively invoke satisfaction for concept checks?  */
+
+bool
+satisfying_constraint_p ()
+{
+  return satisfying_constraint;
+}
+
 static tree satisfy_expression (tree, tree, subst_info info);
 
 /* Compute the satisfaction of a conjunction.  */
@@ -1618,10 +1629,10 @@ satisfy_disjunction (tree expr, tree args, subst_info info)
 static tree
 satisfy_check (tree expr, tree args, subst_info info)
 {
-  /* Apply the parameter mapping (i.e., just substitute).  However,
-     normalization requires substitution errors into the arguments of
-     a concept to be diagnosed (17.4.3p1.4).  */
+  /* Apply the parameter mapping (i.e., substitute), if needed.  */
+  ++satisfying_constraint;
   expr = tsubst_expr (expr, args, info.complain, info.in_decl, false);
+  --satisfying_constraint;
   if (expr == error_mark_node)
     return error_mark_node;
 
@@ -1646,8 +1657,9 @@ satisfy_check (tree expr, tree args, subst_info info)
 
 /* Ensures that T is a truth value and not (accidentally, as sometimes 
    happens) an integer value.  */
+
 static tree
-satisfaction_value(tree t)
+satisfaction_value (tree t)
 {
   if (t == error_mark_node)
     return t;
@@ -1655,20 +1667,9 @@ satisfaction_value(tree t)
     return t;
   if (t == boolean_false_node || t == integer_zero_node)
     return t;
+  
   /* Anything else should be invalid.  */
-  verbatim ("HERE %qE", t);
-  debug_tree (t);
-  gcc_assert(false);
-}
-
-/* Returns true if T is an expected result of the satisfaction.  */
-
-static bool
-valid_result_p(tree t)
-{
-  return (t == boolean_true_node 
-  	  || t == boolean_false_node 
-  	  || t == error_mark_node);
+  gcc_assert (false);
 }
 
 /* Compute the satisfaction of an atomic constraint.  */
@@ -1743,9 +1744,7 @@ satisfy_expression (tree expr, tree args, subst_info info)
     }
 }
 
-/* Check that the constraint is satisfied, according to the rules
-   for that constraint. Note that each satisfy_* function returns
-   true or false, depending on whether it is satisfied or not.  */
+/* Check that the constraint is satisfied.  */
 
 static tree
 satisfy_constraint (tree t, tree args)
@@ -1786,6 +1785,9 @@ satisfy_associated_constraints (tree ci, tree args)
   if (args && uses_template_parms (args))
     return boolean_true_node;
 
+  return satisfy_constraint (CI_ASSOCIATED_CONSTRAINTS (ci), args);
+
+#if 0
   /* Check if we've seen a previous result. */
   if (tree prev = lookup_constraint_satisfaction (ci, args))
     return prev;
@@ -1793,6 +1795,7 @@ satisfy_associated_constraints (tree ci, tree args)
   /* Actually test for satisfaction. */
   tree result = satisfy_constraint (CI_ASSOCIATED_CONSTRAINTS (ci), args);
   return memoize_constraint_satisfaction (ci, args, result);
+#endif
 }
 
 /* Evaluate the given constraint, returning boolean_true_node if the 
@@ -1804,13 +1807,49 @@ evaluate_constraints (tree constr, tree args)
   return satisfy_constraint (constr, args);
 }
 
-/* Returns true if C<ARGS> is satisfied and false otherwise.  */
+/* Evaluate a concept check of the form C<ARGS>, returning either TRUE
+   or FALSE. If ARGS contains any template parameters, this returns the
+   check. If satisfaction yields a hard error, diagnose the error.  */
+
+tree
+evaluate_concept_check (tree check)
+{
+  if (check == error_mark_node)
+    return error_mark_node;
+  
+  gcc_assert (TREE_CODE (check) == TEMPLATE_ID_EXPR);
+  
+  tree tmpl = TREE_OPERAND (check, 0);
+  tree args = TREE_OPERAND (check, 1);
+  
+  /* If the arguments are dependent in any way, preserve the check.  */
+  if (uses_template_parms (args))
+    return check;
+
+  tree result = satisfy_constraint (check, NULL_TREE);
+  if (result == error_mark_node)
+    {
+      /* FIXME: Improve the diagnostic by replaying it?  */
+      location_t loc = EXPR_LOC_OR_LOC (check, input_location);
+      error_at (loc, "concept satisfaction failed");
+    }
+
+  return result;
+}
+
+/* Returns true if C<ARGS> is satisfied and false otherwise. This also
+   handles cases where C is a variable or function concept.  */
 
 tree
 evaluate_concept (tree c, tree args)
 {
+  if (variable_concept_p (c))
+    return evaluate_variable_concept (c, args);
+  if (function_concept_p (c))
+    return evaluate_function_concept (c, args);
+  
   tree t = build_nt (TEMPLATE_ID_EXPR, c, args);
-  return satisfy_constraint (t, NULL_TREE);
+  return evaluate_concept_check (t);
 }
 
 /* Evaluate the function concept FN by substituting its own args
@@ -1822,7 +1861,7 @@ tree
 evaluate_function_concept (tree fn, tree args)
 {
   tree t = build_nt (TEMPLATE_ID_EXPR, DECL_TI_TEMPLATE (fn), args);
-  return satisfy_constraint (t, args);
+  return evaluate_concept_check (t);
 }
 
 /* Evaluate the variable concept VAR by substituting its own args into
@@ -1833,8 +1872,8 @@ evaluate_function_concept (tree fn, tree args)
 tree
 evaluate_variable_concept (tree var, tree args)
 {
-  tree constr = build_nt (TEMPLATE_ID_EXPR, DECL_TI_TEMPLATE (var), args);
-  return satisfy_constraint (constr, args);
+  tree t = build_nt (TEMPLATE_ID_EXPR, DECL_TI_TEMPLATE (var), args);
+  return evaluate_concept_check (t);
 }
 
 /* Evaluate EXPR as a constraint expression using ARGS.  */
@@ -1896,22 +1935,6 @@ constraints_satisfied_p (tree t, tree args)
     eval = evaluate_constraints (t, args);
   return eval == boolean_true_node;
 }
-
-namespace
-{
-
-/* Normalize EXPR and determine if the resulting constraint is
-   satisfied by ARGS. Returns true if and only if the constraint
-   is satisfied.  This is used extensively by diagnostics to
-   determine causes for failure.  */
-
-inline bool
-constraint_expression_satisfied_p (tree expr, tree args)
-{
-  return evaluate_constraint_expression (expr, args) == boolean_true_node;
-}
-
-} /* namespace */
 
 /*---------------------------------------------------------------------------
 		Semantic analysis of requires-expressions
@@ -2238,7 +2261,9 @@ diagnose_check (tree expr, tree args, tree in_decl)
   location_t eloc = get_constraint_location (expr);
 
   tree orig_expr = expr;
+  ++satisfying_constraint;
   expr = tsubst_expr (expr, args, tf_none, in_decl, false);
+  --satisfying_constraint;
   if (expr == error_mark_node)
     {
       inform (eloc, "invalid use of the concept %qE", orig_expr);
@@ -2251,6 +2276,7 @@ diagnose_check (tree expr, tree args, tree in_decl)
   gcc_assert (TREE_CODE (expr) == TEMPLATE_ID_EXPR);
   tree tmpl = TREE_OPERAND (expr, 0);
   tree targs = TREE_OPERAND (expr, 1);
+
 
   /* A function concept may be represented as an overload set.  */
   if (OVL_P (tmpl))

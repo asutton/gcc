@@ -18232,6 +18232,8 @@ tsubst_lambda_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
   return r;
 }
 
+extern int satisfying_constraint;
+
 /* Like tsubst but deals with expressions and performs semantic
    analysis.  FUNCTION_P is true if T is the "F" in "F (ARGS)".  */
 
@@ -18335,7 +18337,18 @@ tsubst_copy_and_build (tree t,
 	  RETURN (lookup_and_finish_template_variable (templ, targs, complain));
 	
 	if (concept_definition_p (templ))
-	  return build_concept_check(templ, targs, complain);
+	  {
+	    tree check = build_concept_check (templ, targs, complain);
+	    if (check == error_mark_node)
+	      RETURN (error_mark_node);
+	    tree args = TREE_OPERAND (check, 1);
+
+	    /* Evaluate the concept, if needed.  */
+	    if (!uses_template_parms (args) && !satisfying_constraint_p ())
+	      RETURN (evaluate_concept_check (check));
+	    else
+	      RETURN (check);
+	  }
 
 	if (TREE_CODE (templ) == COMPONENT_REF)
 	  {
