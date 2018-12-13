@@ -73,6 +73,7 @@ parsing_constraint_expression_p ()
 ---------------------------------------------------------------------------*/
 
 /* Information provided to substitution.  */
+
 struct subst_info
 {
   subst_info (tsubst_flags_t cmp, tree in)
@@ -1306,11 +1307,22 @@ hash_placeholder_constraint (tree c)
 /* Substitute through the simple requirement.  */
 
 static tree
-tsubst_simple_requirement (tree t, tree args,
-			   tsubst_flags_t complain, tree in_decl)
+tsubst_valid_expression_requirement (tree t, tree args, subst_info info)
+{
+  /* Don't diagnose access checks immediately.  */
+  deferring_access_check_sentinel acs (dk_no_deferred);
+
+  return tsubst_expr (t, args, info.complain, info.in_decl, false);
+}
+
+
+/* Substitute through the simple requirement.  */
+
+static tree
+tsubst_simple_requirement (tree t, tree args, subst_info info)
 {
   tree t0 = TREE_OPERAND (t, 0);
-  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  tree expr = tsubst_valid_expression_requirement (t0, args, info);
   if (expr == error_mark_node)
     return error_mark_node;
   return finish_simple_requirement (expr);
@@ -1319,11 +1331,13 @@ tsubst_simple_requirement (tree t, tree args,
 /* Substitute through the type requirement.  */
 
 static tree
-tsubst_type_requirement (tree t, tree args,
-			 tsubst_flags_t complain, tree in_decl)
+tsubst_type_requirement (tree t, tree args, subst_info info)
 {
+  /* Don't diagnose access checks immediately.  */
+  deferring_access_check_sentinel acs (dk_no_deferred);
+
   tree t0 = TREE_OPERAND (t, 0);
-  tree type = tsubst (t0, args, complain, in_decl);
+  tree type = tsubst (t0, args, info.complain, info.in_decl);
   if (type == error_mark_node)
     return error_mark_node;
   return finish_type_requirement (type);
@@ -1337,40 +1351,49 @@ tsubst_type_requirement (tree t, tree args,
 
 static bool
 type_deducible_p (tree expr, tree type, tree placeholder, tree args, 
-                  tsubst_flags_t complain, tree in_decl)
+                  subst_info info)
 {
   /* Replace the constraints with the instantiated constraints.  */
   tree saved_constr = PLACEHOLDER_TYPE_CONSTRAINTS (placeholder);
   PLACEHOLDER_TYPE_CONSTRAINTS (placeholder)
-    = tsubst_expr (saved_constr, args, complain | tf_partial, in_decl, false);
+    = tsubst_expr (saved_constr, 
+		   args, 
+		   info.complain | tf_partial, 
+		   info.in_decl, 
+		   false);
 
   /* Unlink the canonical type.  */
   tree saved_type = TYPE_CANONICAL (placeholder);
   TYPE_CANONICAL (placeholder) = NULL_TREE;
 
-  tree deduced_type = do_auto_deduction (type, expr, placeholder,
-                                         complain, adc_requirement);
+  tree deduced_type 
+    = do_auto_deduction (type, 
+			 expr, 
+			 placeholder, 
+			 info.complain, 
+			 adc_requirement);
 
   PLACEHOLDER_TYPE_CONSTRAINTS (placeholder) = saved_constr;
   TYPE_CANONICAL (placeholder) = saved_type;
   
   if (deduced_type == error_mark_node)
     return false;
+  
   return true;
 }
 
 /* True if EXPR can not be converted to TYPE.  */
 
 static bool 
-expression_convertible_p (tree expr, tree type, tsubst_flags_t complain)
+expression_convertible_p (tree expr, tree type, subst_info info)
 {
   tree conv =
-    perform_direct_initialization_if_possible (type, expr, false, complain);
+    perform_direct_initialization_if_possible (type, expr, false, info.complain);
   if (conv == error_mark_node)
     return false;
   if (conv == NULL_TREE)
     {
-      if (complain & tf_error)
+      if (info.complain & tf_error)
         {
           location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
           error_at (loc, "cannot convert %qE to %qT", expr, type);
@@ -1384,13 +1407,11 @@ expression_convertible_p (tree expr, tree type, tsubst_flags_t complain)
 /* Substitute through the compound requirement.  */
 
 static tree
-tsubst_compound_requirement (tree t, tree args,
-			     tsubst_flags_t complain, tree in_decl)
+tsubst_compound_requirement (tree t, tree args, subst_info info)
 {
   tree t0 = TREE_OPERAND (t, 0);
   tree t1 = TREE_OPERAND (t, 1);
-
-  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  tree expr = tsubst_valid_expression_requirement (t0, args, info);
   if (expr == error_mark_node)
     return error_mark_node;
 
@@ -1399,7 +1420,7 @@ tsubst_compound_requirement (tree t, tree args,
   if (noexcept_p && !expr_noexcept_p (expr, tf_none))
     return error_mark_node;
 
-  tree type = tsubst (t1, args, complain, in_decl);
+  tree type = tsubst (t1, args, info.complain, info.in_decl);
   if (type == error_mark_node)
     return error_mark_node;
   
@@ -1408,10 +1429,10 @@ tsubst_compound_requirement (tree t, tree args,
     {
       if (tree placeholder = type_uses_auto (type))
 	{
-	  if (!type_deducible_p (expr, type, placeholder, args, complain, in_decl))
+	  if (!type_deducible_p (expr, type, placeholder, args, info))
 	    return error_mark_node;
 	}
-      else if (!expression_convertible_p (expr, type, complain)) 
+      else if (!expression_convertible_p (expr, type, info)) 
 	return error_mark_node;
     }
   
@@ -1419,31 +1440,31 @@ tsubst_compound_requirement (tree t, tree args,
 }
 
 static tree
-tsubst_nested_requirement (tree t, tree args,
-			   tsubst_flags_t complain, tree in_decl)
+tsubst_nested_requirement (tree t, tree args, subst_info info)
 {
   tree t0 = TREE_OPERAND (t, 0);
-  tree expr = tsubst_expr (t0, args, complain, in_decl, false);
+  tree expr = tsubst_expr (t0, args, info.complain, info.in_decl, false);
   if (expr == error_mark_node)
     return error_mark_node;
+  
   return finish_nested_requirement (expr);
 }
 
 /* Substitute ARGS into the requirement T.  */
 
 static tree
-tsubst_requirement (tree t, tree args, tsubst_flags_t complain, tree in_decl)
+tsubst_requirement (tree t, tree args, subst_info info)
 {
   switch (TREE_CODE (t))
     {
     case SIMPLE_REQ:
-      return tsubst_simple_requirement (t, args, complain, in_decl);
+      return tsubst_simple_requirement (t, args, info);
     case TYPE_REQ:
-      return tsubst_type_requirement (t, args, complain, in_decl);
+      return tsubst_type_requirement (t, args, info);
     case COMPOUND_REQ:
-      return tsubst_compound_requirement (t, args, complain, in_decl);
+      return tsubst_compound_requirement (t, args, info);
     case NESTED_REQ:
-      return tsubst_nested_requirement (t, args, complain, in_decl);
+      return tsubst_nested_requirement (t, args, info);
     default:
       break;
     }
@@ -1454,13 +1475,12 @@ tsubst_requirement (tree t, tree args, tsubst_flags_t complain, tree in_decl)
    substitution failures here result in ill-formed programs. */
 
 static tree
-tsubst_requirement_body (tree t, tree args,
-			 tsubst_flags_t complain, tree in_decl)
+tsubst_requirement_body (tree t, tree args, subst_info info)
 {
   tree result = NULL_TREE;
   while (t)
     {
-      tree req = tsubst_requirement (TREE_VALUE (t), args, complain, in_decl);
+      tree req = tsubst_requirement (TREE_VALUE (t), args, info);
       if (req == error_mark_node)
 	return error_mark_node;
       result = tree_cons (NULL_TREE, req, result);
@@ -1498,20 +1518,18 @@ declare_constraint_vars (tree parms, tree vars)
    declare the substituted parameters. */
 
 static tree
-tsubst_constraint_variables (tree t, tree args,
-                            tsubst_flags_t complain, tree in_decl)
+tsubst_constraint_variables (tree t, tree args, subst_info info)
 {
   /* Clear cp_unevaluated_operand across tsubst so that we get a proper chain
      of PARM_DECLs.  */
   int saved_unevaluated_operand = cp_unevaluated_operand;
   cp_unevaluated_operand = 0;
-  tree vars = tsubst (t, args, complain, in_decl);
+  tree vars = tsubst (t, args, info.complain, info.in_decl);
   cp_unevaluated_operand = saved_unevaluated_operand;
   if (vars == error_mark_node)
     return error_mark_node;
   return declare_constraint_vars (t, vars);
 }
-
 
 /* Substitute ARGS into the requires-expression T. [8.4.7]p6. The
    substitution of template arguments into a requires-expression 
@@ -1541,16 +1559,18 @@ tsubst_requires_expr (tree t, tree args,
 {
   local_specialization_stack stack;
 
+  subst_info info(complain, in_decl);
+
   tree parms = TREE_OPERAND (t, 0);
   if (parms)
     {
-      parms = tsubst_constraint_variables (parms, args, complain, in_decl);
+      parms = tsubst_constraint_variables (parms, args, info);
       if (parms == error_mark_node)
 	return boolean_false_node;
     }
 
   tree reqs = TREE_OPERAND (t, 1);
-  reqs = tsubst_requirement_body (reqs, args, complain, in_decl);
+  reqs = tsubst_requirement_body (reqs, args, info);
   if (reqs == error_mark_node)
     return boolean_false_node;
 
@@ -2397,11 +2417,15 @@ diagnose_valid_expression (tree expr, tree args, tree in_decl)
   ++processing_template_decl;
   tree result = tsubst_expr (expr, args, tf_none, in_decl, false);
   --processing_template_decl;
-  if (result != error_mark_node)
-    return result;
 
   location_t loc = get_constraint_location (expr);
   inform (loc, "the required expression %qE is invalid", expr);
+
+  /* Replay the substitution to diagnose the error. 
+     FIXME: This will emit a 2nd error diagnostic.  */
+  if (result != error_mark_node)
+    tsubst_expr (expr, args, tf_error, in_decl, false);
+
   return error_mark_node;
 }
 
@@ -2411,12 +2435,16 @@ diagnose_valid_type (tree type, tree args, tree in_decl)
   ++processing_template_decl;
   tree result = tsubst (type, args, tf_none, in_decl);
   --processing_template_decl;
-  if (result != error_mark_node)
-    return result;
 
   /* FIXME: The type probably does not have a location.  */
   location_t loc = get_constraint_location (type);
   inform (loc, "the required type %qT is invalid", type);
+
+  /* Replay the substitution to diagnose the error. 
+     FIXME: This will emit a 2nd error diagnostic.  */
+  if (result != error_mark_node)
+    tsubst (type, args, tf_error, in_decl);
+
   return error_mark_node;
 }
 
@@ -2449,19 +2477,23 @@ diagnose_compound_requirement (tree req, tree args, tree in_decl)
 
   if (type)
     {
+      subst_info quiet_subst(tf_none, in_decl);
+      
       /* Check the expression against the result type.  */
       if (tree placeholder = type_uses_auto (type))
 	{
-	  if (!type_deducible_p (expr, type, placeholder, args, tf_none, in_decl))
+	  if (!type_deducible_p (expr, type, placeholder, args, quiet_subst))
 	    {
+	      subst_info noisy_subst(tf_none, in_decl);
 	      inform (loc, "cannot deduce a type from %qE", expr);
-	      type_deducible_p (expr, type, placeholder, args, tf_warning_or_error, in_decl);
+	      type_deducible_p (expr, type, placeholder, args, noisy_subst);
 	    }
 	}
-      else if (!expression_convertible_p (expr, type, tf_none))
+      else if (!expression_convertible_p (expr, type, quiet_subst))
       {
 	inform (loc, "cannot convert %qE to %qT", expr, type);
-	// expression_convertible_p (expr, type, tf_warning_or_error);
+	/* FIXME: This generates multiple error diagnostics.  */
+	/* expression_convertible_p (expr, type, tf_warning_or_error); */
       }
     }
 }
@@ -2508,8 +2540,8 @@ diagnose_requires (tree expr, tree args, tree in_decl)
   tree parms = TREE_OPERAND (expr, 0);
   tree body = TREE_OPERAND (expr, 1);
 
-  tree vars = tsubst_constraint_variables (parms, args, tf_warning_or_error,
-                                           NULL_TREE);
+  subst_info info(tf_warning_or_error, NULL_TREE);
+  tree vars = tsubst_constraint_variables (parms, args, info);
   if (vars == error_mark_node)
     return;
 

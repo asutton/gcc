@@ -1,3 +1,12 @@
+2018-10-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Defer access checks requirement checking.
+	* constraint.cc (tsubst_valid_expression_requirement): New. Defer
+	access checks in substitution.
+	(tsubst_simple_requirement): Use new subst function.
+	(tsubst_type_requirement): Defer access checks.
+	(tsubst_compound_requirement): Use new subst function.
+
 2018-10-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix issues with concept evaluation.
@@ -14,8 +23,7 @@
 	(evaluate_concept_check): New.
 	(function_concept_p): New.
 	* pt.c (tsubst_copy_and_build): Guard against recursive instantiation.
-	* semantics.c (finish_id_expression): Don't evaluate dependent
-	checks.
+	* semantics.c (finish_id_expression): Don't evaluate dependent checks.
 
 2018-10-15  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
