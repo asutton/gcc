@@ -9229,7 +9229,6 @@ finish_static_assert (tree condition, tree message, location_t location,
 	}
       else if (condition && condition != error_mark_node)
 	{
-          debug_tree (condition);
 	  error ("non-constant condition for static assertion");
 	  if (require_rvalue_constant_expression (condition))
 	    cxx_constant_value (condition);

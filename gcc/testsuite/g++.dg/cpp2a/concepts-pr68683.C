@@ -1,9 +1,5 @@
-<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/pr68683.C
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
-=======
+// PR c++/68683
 // { dg-options "-std=c++2a" }
->>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-pr68683.C
 
 template <typename, typename>
 struct is_same {

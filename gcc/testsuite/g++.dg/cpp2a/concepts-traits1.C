@@ -1,9 +1,4 @@
-<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/traits1.C
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
-=======
 // { dg-options "-std=c++2a" }
->>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-traits1.C
 
 template<typename T>
   concept Nothrow_assignable = __has_nothrow_assign(T);

@@ -1,9 +1,4 @@
-<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/inherit-ctor2.C
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
-=======
 // { dg-options "-std=c++2a" }
->>>>>>> 594131fbad3... move ported tests; note more issues and needs port after fixes:gcc/testsuite/g++.dg/cpp2a/concepts-inherit-ctor2.C
 
 template<typename T>
   concept C = __is_class(T);

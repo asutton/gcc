@@ -31,11 +31,11 @@ template<typename T, typename U>
 concept C2 = true; // { dg-error "different template parameters" }
 template<int>
 concept C2 = true; // { dg-error "different template parameters" }
-int C2 = 0; // { dg-error "different kind of symbol" }
+int C2 = 0; // { dg-error "different kind of entity" }
 
 int C3 = 0;
 template<typename T>
-concept C3 = true; // { dg-error "different kind of symbol" }
+concept C3 = true; // { dg-error "different kind of entity" }
 
 // Concepts as expressions
 

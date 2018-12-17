@@ -1,9 +1,4 @@
-<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/placeholder1.C
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
-=======
 // { dg-options "-std=c++2a" }
->>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-placeholder1.C
 
 template<typename T, typename U>
 struct is_same

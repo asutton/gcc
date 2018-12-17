@@ -1,10 +1,5 @@
 // PR c++/67152
-<<<<<<< HEAD:gcc/testsuite/g++.dg/concepts/partial-spec6.C
-// { dg-do compile { target c++17 } }
-// { dg-options "-fconcepts" }
-=======
 // { dg-options "-std=c++2a" }
->>>>>>> eda685858ca... move more ported tests:gcc/testsuite/g++.dg/cpp2a/concepts-partial-spec6.C
 
 template <class T>
 concept HasType = requires { typename T::type; };
