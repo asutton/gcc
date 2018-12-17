@@ -969,6 +969,8 @@ dwarf2out_do_cfi_startproc (bool second)
 
   fprintf (asm_out_file, "\t.cfi_startproc\n");
 
+  targetm.asm_out.post_cfi_startproc (asm_out_file, current_function_decl);
+
   /* .cfi_personality and .cfi_lsda are only relevant to DWARF2
      eh unwinders.  */
   if (targetm_common.except_unwind_info (&global_options) != UI_DWARF2)
@@ -18985,7 +18987,6 @@ field_byte_offset (const_tree decl, struct vlr_context *ctx,
   if (TREE_CODE (DECL_FIELD_BIT_OFFSET (decl)) != INTEGER_CST)
     return NULL;
 
-#ifdef PCC_BITFIELD_TYPE_MATTERS
   /* We used to handle only constant offsets in all cases.  Now, we handle
      properly dynamic byte offsets only when PCC bitfield type doesn't
      matter.  */
@@ -19100,7 +19101,6 @@ field_byte_offset (const_tree decl, struct vlr_context *ctx,
       tree_result = wide_int_to_tree (sizetype, object_offset_in_bytes);
     }
   else
-#endif /* PCC_BITFIELD_TYPE_MATTERS */
     tree_result = byte_position (decl);
 
   if (ctx->variant_part_offset != NULL_TREE)
@@ -24539,6 +24539,7 @@ gen_inheritance_die (tree binfo, tree access, tree type,
 
 /* Return whether DECL is a FIELD_DECL that represents the variant part of a
    structure.  */
+
 static bool
 is_variant_part (tree decl)
 {
@@ -24552,17 +24553,8 @@ is_variant_part (tree decl)
 static tree
 analyze_discr_in_predicate (tree operand, tree struct_type)
 {
-  bool continue_stripping = true;
-  while (continue_stripping)
-    switch (TREE_CODE (operand))
-      {
-      CASE_CONVERT:
-	operand = TREE_OPERAND (operand, 0);
-	break;
-      default:
-	continue_stripping = false;
-	break;
-      }
+  while (CONVERT_EXPR_P (operand))
+    operand = TREE_OPERAND (operand, 0);
 
   /* Match field access to members of struct_type only.  */
   if (TREE_CODE (operand) == COMPONENT_REF
@@ -24780,6 +24772,19 @@ analyze_variants_discr (tree variant_part_decl,
 		goto abort;
 
 	      new_node->dw_discr_range = true;
+	    }
+
+	  else if ((candidate_discr
+		      = analyze_discr_in_predicate (match_expr, struct_type))
+		   && TREE_TYPE (candidate_discr) == boolean_type_node)
+	    {
+	      /* We are matching:  <discr_field> for a boolean discriminant.
+		 This sub-expression matches boolean_true_node.  */
+	      new_node = ggc_cleared_alloc<dw_discr_list_node> ();
+	      if (!get_discr_value (boolean_true_node,
+				    &new_node->dw_discr_lower_bound))
+		goto abort;
+	      new_node->dw_discr_range = false;
 	    }
 
 	  else
