@@ -40,6 +40,8 @@ c-common.h, not after.
 #include "c-family/c-common.h"
 #include "diagnostic.h"
 
+#include "print-tree.h"
+
 /* A tree node, together with a location, so that we can track locations
    (and ranges) during parsing.
 
@@ -1438,7 +1440,7 @@ check_nonnull (T* p)
   return p;
 }
 
-// Returns true iff T is non-null and represents constraint info.
+/* Returns true iff T is non-null and represents constraint info.  */
 inline tree_constraint_info *
 check_constraint_info (tree t)
 {
@@ -1447,31 +1449,31 @@ check_constraint_info (tree t)
   return NULL;
 }
 
-// Access the expression describing the template constraints. This may be
-// null if no constraints were introduced in the template parameter list,
-// a requirements clause after the template parameter list, or constraints
-// through a constrained-type-specifier.
+/* Access the expression describing the template constraints. This may be
+   null if no constraints were introduced in the template parameter list,
+   a requirements clause after the template parameter list, or constraints
+   through a constrained-type-specifier.  */
 #define CI_TEMPLATE_REQS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->template_reqs
+  check_constraint_info (check_nonnull (NODE))->template_reqs
 
-// Access the expression describing the trailing constraints. This is non-null
-// for any implicit instantiation of a constrained declaration. For a
-// templated declaration it is non-null only when a trailing requires-clause
-// was specified.
+/* Access the expression describing the trailing constraints. This is non-null
+   for any implicit instantiation of a constrained declaration. For a
+   templated declaration it is non-null only when a trailing requires-clause
+   was specified.  */
 #define CI_DECLARATOR_REQS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->declarator_reqs
+  check_constraint_info (check_nonnull (NODE))->declarator_reqs
 
-// The computed associated constraint expression for a declaration.
+/* The computed associated constraint expression for a declaration.  */
 #define CI_ASSOCIATED_CONSTRAINTS(NODE) \
-  check_constraint_info (check_nonnull(NODE))->associated_constr
+  check_constraint_info (check_nonnull (NODE))->associated_constr
 
-// Access the logical constraints on the template parameters introduced
-// at a given template parameter list level indicated by NODE.
+/* Access the constraint-expression introduced by the requires-clause 
+   associate the template parameter list NODE.  */
 #define TEMPLATE_PARMS_CONSTRAINTS(NODE) \
   TREE_TYPE (TREE_LIST_CHECK (NODE))
 
-// Access the logical constraints on the template parameter declaration
-// indicated by NODE.
+/* Access the logical constraints on the template parameter declaration
+   indicated by NODE.  */
 #define TEMPLATE_PARM_CONSTRAINTS(NODE) \
   TREE_TYPE (TREE_LIST_CHECK (NODE))
 
@@ -1485,8 +1487,8 @@ check_constraint_info (tree t)
   DECL_SIZE_UNIT (TYPE_NAME (NODE))
 
 /* The expression evaluated by the predicate constraint. */
-#define PRED_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PRED_CONSTR), 0)
+#define ATOMIC_CONSTR_EXPR(NODE) \
+  TREE_OPERAND (TREE_CHECK (NODE, ATOMIC_CONSTR), 0)
 
 /* The concept of a concept check. */
 #define CHECK_CONSTR_CONCEPT(NODE) \
@@ -1495,46 +1497,6 @@ check_constraint_info (tree t)
 /* The template arguments of a concept check. */
 #define CHECK_CONSTR_ARGS(NODE) \
   TREE_OPERAND (TREE_CHECK (NODE, CHECK_CONSTR), 1)
-
-/* The expression validated by the predicate constraint. */
-#define EXPR_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, EXPR_CONSTR), 0)
-
-/* The type validated by the predicate constraint. */
-#define TYPE_CONSTR_TYPE(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, TYPE_CONSTR), 0)
-
-/* In an implicit conversion constraint, the source expression. */
-#define ICONV_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, ICONV_CONSTR), 0)
-
-/* In an implicit conversion constraint, the target type. */
-#define ICONV_CONSTR_TYPE(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, ICONV_CONSTR), 1)
-
-/* In an argument deduction constraint, the source expression. */
-#define DEDUCT_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 0)
-
-/* In an argument deduction constraint, the target type pattern. */
-#define DEDUCT_CONSTR_PATTERN(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 1)
-
-/* In an argument deduction constraint, the list of placeholder nodes. */
-#define DEDUCT_CONSTR_PLACEHOLDER(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, DEDUCT_CONSTR), 2)
-
-/* The expression of an exception constraint. */
-#define EXCEPT_CONSTR_EXPR(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, EXCEPT_CONSTR), 0)
-
-/* In a parameterized constraint, the local parameters. */
-#define PARM_CONSTR_PARMS(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PARM_CONSTR), 0)
-
-/* In a parameterized constraint, the operand. */
-#define PARM_CONSTR_OPERAND(NODE) \
-  TREE_OPERAND (TREE_CHECK (NODE, PARM_CONSTR), 1)
 
 /* Whether a PARM_DECL represents a local parameter in a
    requires-expression.  */
@@ -2566,7 +2528,8 @@ struct GTY(()) lang_decl_base {
    || TREE_CODE (NODE) == CONST_DECL		\
    || TREE_CODE (NODE) == TYPE_DECL		\
    || TREE_CODE (NODE) == TEMPLATE_DECL		\
-   || TREE_CODE (NODE) == USING_DECL)
+   || TREE_CODE (NODE) == USING_DECL            \
+   || TREE_CODE (NODE) == CONCEPT_DECL)
 
 /* DECL_LANG_SPECIFIC for the above codes.  */
 
@@ -3309,6 +3272,33 @@ struct GTY(()) lang_decl {
 #define TEMPLATE_DECL_COMPLEX_ALIAS_P(NODE) \
   DECL_LANG_FLAG_2 (TEMPLATE_DECL_CHECK (NODE))
 
+/* Returns t iff the node can have a TEMPLATE_INFO field.  */
+
+inline tree
+template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
+{
+  switch (TREE_CODE (t))
+    {
+    case VAR_DECL:
+    case FUNCTION_DECL:
+    case FIELD_DECL:
+    case TYPE_DECL:
+    case CONCEPT_DECL:
+    case TEMPLATE_DECL:
+      return const_cast<tree>(t);
+    default:
+      break;
+    }
+  tree_check_failed (t, f, l, fn, 
+                     VAR_DECL, FUNCTION_DECL, FIELD_DECL, TYPE_DECL, 
+                     CONCEPT_DECL, TEMPLATE_DECL, 0);
+  gcc_unreachable ();
+}
+
+
+#define TEMPLATE_INFO_DECL_CHECK(NODE) \
+  template_info_decl_check ((NODE), __FILE__, __LINE__, __FUNCTION__)
+
 /* Nonzero for a type which is an alias for another type; i.e, a type
    which declaration was written 'using name-of-type =
    another-type'.  */
@@ -3318,8 +3308,8 @@ struct GTY(()) lang_decl {
    && TREE_CODE (TYPE_NAME (NODE)) == TYPE_DECL	\
    && TYPE_DECL_ALIAS_P (TYPE_NAME (NODE)))
 
-/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL or
-   TEMPLATE_DECL, the entity is either a template specialization (if
+/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL, TEMPLATE_DECL, 
+   or CONCEPT_DECL, the entity is either a template specialization (if
    DECL_USE_TEMPLATE is nonzero) or the abstract instance of the
    template itself.
 
@@ -3338,7 +3328,7 @@ struct GTY(()) lang_decl {
    global function f.  In this case, DECL_TEMPLATE_INFO for S<int>::f
    will be non-NULL, but DECL_USE_TEMPLATE will be zero.  */
 #define DECL_TEMPLATE_INFO(NODE) \
-  (DECL_LANG_SPECIFIC (VAR_TEMPL_TYPE_FIELD_OR_FUNCTION_DECL_CHECK (NODE)) \
+  (DECL_LANG_SPECIFIC (TEMPLATE_INFO_DECL_CHECK (NODE)) \
    ->u.min.template_info)
 
 /* For a lambda capture proxy, its captured variable.  */
@@ -6048,43 +6038,6 @@ class_of_this_parm (const_tree fntype)
   return TREE_TYPE (type_of_this_parm (fntype));
 }
 
-/* True iff T is a variable template declaration. */
-inline bool
-variable_template_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (!PRIMARY_TEMPLATE_P (t))
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_P (r);
-  return false;
-}
-
-/* True iff T is a variable concept definition. That is, T is
-   a variable template declared with the concept specifier. */
-inline bool
-variable_concept_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
-}
-
-/* True iff T is a concept definition. That is, T is a variable or function
-   template declared with the concept specifier. */
-inline bool
-concept_template_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_OR_FUNCTION_DECL_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
-}
-
 /* A parameter list indicating for a function with no parameters,
    e.g  "int f(void)".  */
 extern cp_parameter_declarator *no_parameters;
@@ -6713,6 +6666,7 @@ extern bool check_default_tmpl_args             (tree, tree, bool, bool, int);
 extern tree push_template_decl			(tree);
 extern tree push_template_decl_real		(tree, bool);
 extern tree add_inherited_template_parms	(tree, tree);
+extern void template_parm_level_and_index	(tree, int*, int*);
 extern bool redeclare_class_template		(tree, tree, tree);
 extern tree lookup_template_class		(tree, tree, tree, tree,
 						 int, tsubst_flags_t);
@@ -6737,6 +6691,7 @@ extern bool always_instantiate_p		(tree);
 extern bool maybe_instantiate_noexcept		(tree, tsubst_flags_t = tf_warning_or_error);
 extern tree instantiate_decl			(tree, bool, bool);
 extern int comp_template_parms			(const_tree, const_tree);
+extern bool template_heads_equivalent_p		(const_tree, const_tree);
 extern bool builtin_pack_fn_p			(tree);
 extern bool uses_parameter_packs                (tree);
 extern bool template_parameter_pack_p           (const_tree);
@@ -7570,17 +7525,23 @@ extern cp_binding_oracle_function *cp_binding_oracle;
 
 /* in constraint.cc */
 extern void init_constraint_processing          ();
-extern bool constraint_p                        (tree);
-extern tree conjoin_constraints                 (tree, tree);
-extern tree conjoin_constraints                 (tree);
+extern tree finish_constraint_or_expr           (location_t, tree, tree);
+extern tree finish_constraint_and_expr          (location_t, tree, tree);
+extern tree finish_constraint_primary_expr      (location_t, tree);
+extern tree start_concept_definition            (location_t, tree);
+extern tree finish_concept_definition           (tree, tree);
+extern tree combine_constraint_expressions      (tree, tree);
 extern tree get_constraints                     (tree);
 extern void set_constraints                     (tree, tree);
 extern void remove_constraints                  (tree);
 extern tree current_template_constraints	(void);
 extern tree associate_classtype_constraints     (tree);
 extern tree build_constraints                   (tree, tree);
+extern tree get_template_head_requirements	(tree);
+extern tree get_trailing_function_requirements	(tree);
 extern tree get_shorthand_constraints           (tree);
-extern tree build_concept_check                 (tree, tree, tree = NULL_TREE);
+extern tree build_concept_check                 (tree, tree, tsubst_flags_t);
+extern tree build_concept_check                 (tree, tree, tree, tsubst_flags_t);
 extern tree build_constrained_parameter         (tree, tree, tree = NULL_TREE);
 extern tree make_constrained_auto               (tree, tree);
 extern void placeholder_extract_concept_and_args (tree, tree&, tree&);
@@ -7603,13 +7564,23 @@ extern tree tsubst_requires_expr                (tree, tree, tsubst_flags_t, tre
 extern tree tsubst_constraint                   (tree, tree, tsubst_flags_t, tree);
 extern tree tsubst_constraint_info              (tree, tree, tsubst_flags_t, tree);
 extern bool function_concept_check_p            (tree);
-extern tree normalize_expression                (tree);
-extern tree expand_concept                      (tree, tree);
-extern bool expanding_concept                   ();
+
+struct parsing_constraint_expression_sentinel
+{
+  parsing_constraint_expression_sentinel ();
+  ~parsing_constraint_expression_sentinel ();
+};
+
+extern bool parsing_constraint_expression_p	();
+extern bool satisfying_constraint_p		();
+
 extern tree evaluate_constraints                (tree, tree);
+extern tree evaluate_concept_check              (tree);
+extern tree evaluate_concept                    (tree, tree);
 extern tree evaluate_function_concept           (tree, tree);
 extern tree evaluate_variable_concept           (tree, tree);
 extern tree evaluate_constraint_expression      (tree, tree);
+extern tree evaluate_constraint_expression      (tree);
 extern bool constraints_satisfied_p             (tree);
 extern bool constraints_satisfied_p             (tree, tree);
 extern tree lookup_constraint_satisfaction      (tree, tree);
@@ -7620,17 +7591,18 @@ extern tree get_concept_expansion               (tree, tree);
 extern tree save_concept_expansion              (tree, tree, tree);
 extern bool* lookup_subsumption_result          (tree, tree);
 extern bool save_subsumption_result             (tree, tree, bool);
+extern tree find_template_parameters		(tree);
 
 extern bool equivalent_constraints              (tree, tree);
 extern bool equivalently_constrained            (tree, tree);
 extern bool subsumes_constraints                (tree, tree);
-extern bool strictly_subsumes			(tree, tree);
+extern bool strictly_subsumes			(tree, tree, tree);
+extern bool weakly_subsumes			(tree, tree, tree);
 extern int more_constrained                     (tree, tree);
 
 extern void diagnose_constraints                (location_t, tree, tree);
 
 /* in logic.cc */
-extern tree decompose_conclusions               (tree);
 extern bool subsumes                            (tree, tree);
 
 /* In class.c */
@@ -7719,6 +7691,108 @@ null_node_p (const_tree expr)
 {
   STRIP_ANY_LOCATION_WRAPPER (expr);
   return expr == null_node;
+}
+
+/* True iff T is a variable template declaration. */
+inline bool
+variable_template_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (!PRIMARY_TEMPLATE_P (t))
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_P (r);
+  return false;
+}
+
+/* True iff T is a variable concept definition. That is, T is
+   a variable template declared with the concept specifier.  */
+
+inline bool
+variable_concept_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a function concept definition. That is, T is
+   a function template declared with the concept specifier.  */
+
+inline bool
+function_concept_p (tree t)
+{
+  if (TREE_CODE (t) == OVERLOAD)
+    t = OVL_FIRST (t);
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return TREE_CODE (r) == FUNCTION_DECL && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a concept definition. That is, T is a variable or function
+   template declared with the concept specifier.  */
+
+inline bool
+concept_template_p (tree t)
+{
+  if (TREE_CODE (t) != TEMPLATE_DECL)
+    return false;
+  if (tree r = DECL_TEMPLATE_RESULT (t))
+    return VAR_OR_FUNCTION_DECL_P (r) && DECL_DECLARED_CONCEPT_P (r);
+  return false;
+}
+
+/* True iff T is a concept definition or a template that defines the 
+   concept. This will also return true for concepts-ts style concepts.  */
+
+inline bool
+concept_definition_p (tree t)
+{
+  if (t == error_mark_node)
+    return false;
+
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  
+  /* The obvious and easy case.  */
+  if (TREE_CODE (t) == CONCEPT_DECL)
+    return true;
+  
+  /* Adjust overloads if needed.  */
+  if (BASELINK_P (t))
+    t = BASELINK_FUNCTIONS (t);
+  if (OVL_P (t))
+    t = OVL_FIRST (const_cast<tree>(t));
+
+  /* Definitely not a concept.  */
+  if (!VAR_OR_FUNCTION_DECL_P (t))
+    return false;
+  if (!DECL_LANG_SPECIFIC (t))
+    return false;
+  
+  return DECL_DECLARED_CONCEPT_P (t);
+}
+
+/* Same as above, but for const trees.  */
+inline bool
+concept_definition_p (const_tree t)
+{
+  return concept_definition_p (const_cast<tree> (t));
+}
+
+/* True if t is a template-id that refers to concept definition.  */
+
+inline bool
+concept_check_p (const_tree t)
+{
+  if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
+    return concept_definition_p (TREE_OPERAND (t, 0));
+  return false;
 }
 
 #if CHECKING_P

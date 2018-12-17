@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ubsan.h"
 #include "gimple-fold.h"
 #include "timevar.h"
+#include "print-tree.h"
 
 static bool verify_constant (tree, bool, bool *, bool *);
 #define VERIFY_CONSTANT(X)						\
@@ -4951,6 +4952,20 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
       r = void_node;
       break;
 
+    case TEMPLATE_ID_EXPR:
+      {
+        /* We can evaluate template-id that refers to a concept only if
+	   the template arguments are non-dependent.  */
+	if (!concept_definition_p (TREE_OPERAND (t, 0)))
+	  internal_error ("unexpected template_id_expr %qE", t);
+
+	if (!processing_template_decl)
+	  return evaluate_constraint_expression (t, NULL_TREE);
+	else
+	  *non_constant_p = true;
+	return t;
+      }
+
     default:
       if (STATEMENT_CODE_P (TREE_CODE (t)))
 	{
@@ -4961,7 +4976,7 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 	    error_at (EXPR_LOCATION (t),
 		      "statement is not a constant expression");
 	}
-      else
+      else 
 	internal_error ("unexpected expression %qE of kind %s", t,
 			get_tree_code_name (TREE_CODE (t)));
       *non_constant_p = true;
