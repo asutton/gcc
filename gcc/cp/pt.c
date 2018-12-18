@@ -9903,14 +9903,6 @@ finish_template_variable (tree var, tsubst_flags_t complain)
       return error_mark_node;
     }
 
-  /* We never want to return a VAR_DECL for a variable concept, since
-     they aren't instantiated.  Rebuild the id-expr with the converted
-     arguments.
-
-     FIXME: This is not right. We shouldn't build checks here.  */
-  if (flag_concepts && variable_concept_p (templ))
-    return build2 (TEMPLATE_ID_EXPR, boolean_type_node, templ, arglist);
-
   return instantiate_template (templ, arglist, complain);
 }
 
@@ -26001,14 +25993,14 @@ instantiation_dependent_r (tree *tp, int *walk_subtrees,
       return *tp;
 
     case CALL_EXPR:
-      /* Treat calls to function concepts as dependent. */
-      if (function_concept_check_p (*tp))
+      /* Treat concept checks as dependent. */
+      if (concept_check_p (*tp))
 	return *tp;
       break;
 
     case TEMPLATE_ID_EXPR:
-      /* And variable concepts.  */
-      if (variable_concept_p (TREE_OPERAND (*tp, 0)))
+      /* Treat concept checks as dependent.  */
+      if (concept_check_p (*tp))
 	return *tp;
       break;
 

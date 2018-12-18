@@ -563,47 +563,6 @@ normalize_concept_check (tree t, tree, subst_info info)
   return normalize_expression (def, subst, info);
 }
 
-/* Push down the pack expansion EXP into the leaves of the constraint PAT.
-
-   FIXME: Is this ever called? */
-
-static tree
-push_down_pack_expansion (tree exp, tree pat)
-{
-  switch (TREE_CODE (pat))
-    {
-    case CONJ_CONSTR:
-    case DISJ_CONSTR:
-      {
-	pat = copy_node (pat);
-	TREE_OPERAND (pat, 0)
-	  = push_down_pack_expansion (exp, TREE_OPERAND (pat, 0));
-	TREE_OPERAND (pat, 1)
-	  = push_down_pack_expansion (exp, TREE_OPERAND (pat, 1));
-	return pat;
-      }
-    default:
-      {
-	exp = copy_node (exp);
-	SET_PACK_EXPANSION_PATTERN (exp, pat);
-	return exp;
-      }
-    }
-}
-
-/* Transform a pack expansion into a constraint.  First we transform the
-   pattern of the pack expansion, then we push the pack expansion down into the
-   leaves of the constraint so that partial ordering will work.
-
-   FIXME: Is this ever called? */
-
-static tree
-normalize_pack_expansion (tree t, tree args, subst_info info)
-{
-  tree pat = normalize_expression (PACK_EXPANSION_PATTERN (t), args, info);
-  return push_down_pack_expansion (t, pat);
-}
-
 /* Associate each parameter in PARMS with its corresponding template
    argument in ARGS.  */
 
@@ -668,8 +627,6 @@ normalize_expression (tree t, tree args, subst_info info)
       return normalize_logical_operation (t, args, CONJ_CONSTR, info);
     case TRUTH_ORIF_EXPR:
       return normalize_logical_operation (t, args, DISJ_CONSTR, info);
-    case EXPR_PACK_EXPANSION:
-      return normalize_pack_expansion (t, args, info);
     default:
       return normalize_atom (t, args, info);
     }

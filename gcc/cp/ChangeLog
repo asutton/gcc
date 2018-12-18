@@ -1,5 +1,15 @@
 2019-12-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
+	Fixing broken commit and cleaning up dead code.
+	* constraint.cc (push_down_pack_expansion): Remove.
+	(normalize_pack_expansion): Remove.
+	(normalize_expression): Don't call normalize_pack_expansion.
+	* parser.c (cp_lexer_get_preprocessor_token): Update diagnostics.
+	* pt.c (finish_template_variable): Don't process concepts here.
+	(instantiation_dependent_r): Use concept_check_p.
+
+2019-12-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
 	Cleaning up handling of different kinds of concepts.
 	* constraint.cc (function_concept_check_p): Removed.
 	(variable_concept_check_p): Likewise.
