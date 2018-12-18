@@ -1,32 +1,37 @@
+2018-12-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Clean up handling of different kinds of concepts.
+	* g++.dg/cpp2a/concepts-requires16.C: Update diagnostics.
+
 2018-12-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fixing accidentally propagated merge conflicts.
-	g++.dg/cpp2a/concepts-friend1.C: Resolve merge conflicts.
-	g++.dg/cpp2a/concepts-friend2.C: Likewise.
-	g++.dg/cpp2a/concepts-iconv1.C: Likewise.
-	g++.dg/cpp2a/concepts-inherit-ctor2.C: Likewise.
-	g++.dg/cpp2a/concepts-inherit-ctor4.C: Likewise.
-	g++.dg/cpp2a/concepts-memfun-err.C: Likewise.
-	g++.dg/cpp2a/concepts-memfun.C: Likewise.
-	g++.dg/cpp2a/concepts-partial-spec4.C: Likewise.
-	g++.dg/cpp2a/concepts-partial-spec6.C: Likewise.
-	g++.dg/cpp2a/concepts-placeholder1.C: Likewise.
-	g++.dg/cpp2a/concepts-pr65552.C: Likewise.
-	g++.dg/cpp2a/concepts-pr65854.C: Likewise.
-	g++.dg/cpp2a/concepts-pr68683.C: Likewise.
-	g++.dg/cpp2a/concepts-pr71368.C: Likewise.
-	g++.dg/cpp2a/concepts-requires11.C: Likewise.
-	g++.dg/cpp2a/concepts-requires7.C: Likewise.
-	g++.dg/cpp2a/concepts-requires9.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm1.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm10.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm5.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm6.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm7.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm8.C: Likewise.
-	g++.dg/cpp2a/concepts-template-parm9.C: Likewise.
-	g++.dg/cpp2a/concepts-traits1.C: Likewise.
-	g++.dg/cpp2a/concepts-traits2.C: Likewise.
+	* g++.dg/cpp2a/concepts-friend1.C: Resolve merge conflicts.
+	* g++.dg/cpp2a/concepts-friend2.C: Likewise.
+	* g++.dg/cpp2a/concepts-iconv1.C: Likewise.
+	* g++.dg/cpp2a/concepts-inherit-ctor2.C: Likewise.
+	* g++.dg/cpp2a/concepts-inherit-ctor4.C: Likewise.
+	* g++.dg/cpp2a/concepts-memfun-err.C: Likewise.
+	* g++.dg/cpp2a/concepts-memfun.C: Likewise.
+	* g++.dg/cpp2a/concepts-partial-spec4.C: Likewise.
+	* g++.dg/cpp2a/concepts-partial-spec6.C: Likewise.
+	* g++.dg/cpp2a/concepts-placeholder1.C: Likewise.
+	* g++.dg/cpp2a/concepts-pr65552.C: Likewise.
+	* g++.dg/cpp2a/concepts-pr65854.C: Likewise.
+	* g++.dg/cpp2a/concepts-pr68683.C: Likewise.
+	* g++.dg/cpp2a/concepts-pr71368.C: Likewise.
+	* g++.dg/cpp2a/concepts-requires11.C: Likewise.
+	* g++.dg/cpp2a/concepts-requires7.C: Likewise.
+	* g++.dg/cpp2a/concepts-requires9.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm1.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm10.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm5.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm6.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm7.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm8.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm9.C: Likewise.
+	* g++.dg/cpp2a/concepts-traits1.C: Likewise.
+	* g++.dg/cpp2a/concepts-traits2.C: Likewise.
 
 2018-12-17  Senthil Kumar Selvaraj  <senthilkumar.selvaraj@microchip.com>
 
@@ -4390,11 +4395,11 @@
 	* g++.dg/vec-init-1.C: New test.
 
 2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
-	
+
 	* g++.dg/cpp2a/concepts-requires16.C: Add variadic tests.
 
 2018-10-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
-	
+
 	* g++.dg/cpp2a/concepts-requires16.C: New.
 
 2018-10-14  H.J. Lu  <hongjiu.lu@intel.com>

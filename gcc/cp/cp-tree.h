@@ -733,7 +733,7 @@ struct GTY(()) tree_overload {
 /* Iterator for a 1 dimensional overload.  Permits iterating over the
    outer level of a 2-d overload when explicitly enabled.  */
 
-class ovl_iterator 
+class ovl_iterator
 {
   tree ovl;
   const bool allow_inner; /* Only used when checking.  */
@@ -1282,7 +1282,7 @@ enum cp_trait_kind
 struct GTY (()) tree_trait_expr {
   struct tree_common common;
   tree type1;
-  tree type2;  
+  tree type2;
   enum cp_trait_kind kind;
 };
 
@@ -1467,7 +1467,7 @@ check_constraint_info (tree t)
 #define CI_ASSOCIATED_CONSTRAINTS(NODE) \
   check_constraint_info (check_nonnull (NODE))->associated_constr
 
-/* Access the constraint-expression introduced by the requires-clause 
+/* Access the constraint-expression introduced by the requires-clause
    associate the template parameter list NODE.  */
 #define TEMPLATE_PARMS_CONSTRAINTS(NODE) \
   TREE_TYPE (TREE_LIST_CHECK (NODE))
@@ -1548,7 +1548,7 @@ union GTY((desc ("cp_tree_node_structure (&%h)"),
   struct tree_default_arg GTY ((tag ("TS_CP_DEFAULT_ARG"))) default_arg;
   struct tree_deferred_noexcept GTY ((tag ("TS_CP_DEFERRED_NOEXCEPT"))) deferred_noexcept;
   struct lang_identifier GTY ((tag ("TS_CP_IDENTIFIER"))) identifier;
-  struct tree_static_assert GTY ((tag ("TS_CP_STATIC_ASSERT"))) 
+  struct tree_static_assert GTY ((tag ("TS_CP_STATIC_ASSERT")))
     static_assertion;
   struct tree_argument_pack_select GTY ((tag ("TS_CP_ARGUMENT_PACK_SELECT")))
     argument_pack_select;
@@ -3289,8 +3289,8 @@ template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
     default:
       break;
     }
-  tree_check_failed (t, f, l, fn, 
-                     VAR_DECL, FUNCTION_DECL, FIELD_DECL, TYPE_DECL, 
+  tree_check_failed (t, f, l, fn,
+                     VAR_DECL, FUNCTION_DECL, FIELD_DECL, TYPE_DECL,
                      CONCEPT_DECL, TEMPLATE_DECL, 0);
   gcc_unreachable ();
 }
@@ -3308,7 +3308,7 @@ template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
    && TREE_CODE (TYPE_NAME (NODE)) == TYPE_DECL	\
    && TYPE_DECL_ALIAS_P (TYPE_NAME (NODE)))
 
-/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL, TEMPLATE_DECL, 
+/* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL, TEMPLATE_DECL,
    or CONCEPT_DECL, the entity is either a template specialization (if
    DECL_USE_TEMPLATE is nonzero) or the abstract instance of the
    template itself.
@@ -3511,7 +3511,7 @@ template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
 
       template <typename T> struct S {};
       template <typename T> struct S<T*> {};
-      
+
    the CLASSTPYE_TI_TEMPLATE for S<int*> will be S, not the S<T*>.  */
 #define CLASSTYPE_TI_TEMPLATE(NODE) TI_TEMPLATE (CLASSTYPE_TEMPLATE_INFO (NODE))
 #define CLASSTYPE_TI_ARGS(NODE)     TI_ARGS (CLASSTYPE_TEMPLATE_INFO (NODE))
@@ -3638,7 +3638,7 @@ template_info_decl_check (const_tree t, const char* f, int l, const char* fn)
    select.  */
 #define ARGUMENT_PACK_SELECT_INDEX(NODE)				\
   (((struct tree_argument_pack_select *)ARGUMENT_PACK_SELECT_CHECK (NODE))->index)
-  
+
 #define FOLD_EXPR_CHECK(NODE)						\
   TREE_CHECK4 (NODE, UNARY_LEFT_FOLD_EXPR, UNARY_RIGHT_FOLD_EXPR,	\
 	       BINARY_LEFT_FOLD_EXPR, BINARY_RIGHT_FOLD_EXPR)
@@ -4043,7 +4043,7 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
 /* [basic.fundamental]
 
    Integral and floating types are collectively called arithmetic
-   types.  
+   types.
 
    As a GNU extension, we also accept complex types.
 
@@ -4061,7 +4061,7 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
    Arithmetic types, enumeration types, pointer types,
    pointer-to-member types, and std::nullptr_t are collectively called
    scalar types.
-   
+
    Keep these checks in ascending code order.  */
 #define SCALAR_TYPE_P(TYPE)			\
   (TYPE_PTRDATAMEM_P (TYPE)			\
@@ -4081,7 +4081,7 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
 
    Scoped enumeration types are different from normal (unscoped)
    enumeration types in several ways:
-   
+
      - The enumerators of a scoped enumeration type are only available
        within the scope of the enumeration type and not in the
        enclosing scope. For example, the Red color can be referred to
@@ -4530,7 +4530,7 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
    parameter).  The TREE_PURPOSE is the default value, if any.  The
    TEMPLATE_PARM_INDEX for the parameter is available as the
    DECL_INITIAL (for a PARM_DECL) or as the TREE_TYPE (for a
-   TYPE_DECL). 
+   TYPE_DECL).
 
    FIXME: CONST_CAST_TREE is a hack that hopefully will go away after
    tree is converted to C++ class hiearchy.  */
@@ -4682,18 +4682,18 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
         template <> int min<int> (int, int),
 
      3=explicit instantiation, e.g.:
-  
+
         template int min<int> (int, int);
 
    Note that NODE will be marked as a specialization even if the
    template it is instantiating is not a primary template.  For
    example, given:
 
-     template <typename T> struct O { 
+     template <typename T> struct O {
        void f();
-       struct I {}; 
+       struct I {};
      };
-    
+
    both O<int>::f and O<int>::I will be marked as instantiations.
 
    If DECL_USE_TEMPLATE is nonzero, then DECL_TEMPLATE_INFO will also
@@ -6050,7 +6050,7 @@ extern int raw_dump_id;
 extern bool check_dtor_name			(tree, tree);
 int magic_varargs_p				(tree);
 
-extern tree build_conditional_expr		(location_t, tree, tree, tree, 
+extern tree build_conditional_expr		(location_t, tree, tree, tree,
                                                  tsubst_flags_t);
 extern tree build_addr_func			(tree, tsubst_flags_t);
 extern void set_flags_from_callee		(tree);
@@ -6656,7 +6656,7 @@ extern void append_type_to_template_for_access_check (tree, tree, tree,
 extern tree convert_generic_types_to_packs	(tree, int, int);
 extern tree splice_late_return_type		(tree, tree);
 extern bool is_auto				(const_tree);
-extern tree process_template_parm		(tree, location_t, tree, 
+extern tree process_template_parm		(tree, location_t, tree,
 						 bool, bool);
 extern tree end_template_parm_list		(tree);
 extern void end_template_parm_list		(void);
@@ -7311,7 +7311,7 @@ extern tree cp_build_unary_op                   (enum tree_code, tree, bool,
                                                  tsubst_flags_t);
 extern tree genericize_compound_lvalue		(tree);
 extern tree unary_complex_lvalue		(enum tree_code, tree);
-extern tree build_x_conditional_expr		(location_t, tree, tree, tree, 
+extern tree build_x_conditional_expr		(location_t, tree, tree, tree,
                                                  tsubst_flags_t);
 extern tree build_x_compound_expr_from_list	(tree, expr_list_kind,
 						 tsubst_flags_t);
@@ -7356,7 +7356,7 @@ extern void expand_ptrmemfunc_cst		(tree, tree *, tree *);
 extern tree type_after_usual_arithmetic_conversions (tree, tree);
 extern tree common_pointer_type                 (tree, tree);
 extern tree composite_pointer_type		(tree, tree, tree, tree,
-						 composite_pointer_operation, 
+						 composite_pointer_operation,
 						 tsubst_flags_t);
 extern tree merge_types				(tree, tree);
 extern tree strip_array_domain			(tree);
@@ -7563,7 +7563,6 @@ extern void check_constrained_friend            (tree, tree);
 extern tree tsubst_requires_expr                (tree, tree, tsubst_flags_t, tree);
 extern tree tsubst_constraint                   (tree, tree, tsubst_flags_t, tree);
 extern tree tsubst_constraint_info              (tree, tree, tsubst_flags_t, tree);
-extern bool function_concept_check_p            (tree);
 
 struct parsing_constraint_expression_sentinel
 {
@@ -7706,49 +7705,43 @@ variable_template_p (tree t)
   return false;
 }
 
-/* True iff T is a variable concept definition. That is, T is
-   a variable template declared with the concept specifier.  */
+/* True iff T is a standard concept definition. This will return
+   true for both the template and underlying declaration.  */
+
+inline bool
+standard_concept_p (tree t)
+{
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  return TREE_CODE (t) == CONCEPT_DECL;
+}
+
+/* True iff T is a variable concept definition. This will return
+   true for both the template and the underlying declaration.  */
 
 inline bool
 variable_concept_p (tree t)
 {
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  return VAR_P (t) && DECL_DECLARED_CONCEPT_P (t);
 }
 
-/* True iff T is a function concept definition. That is, T is
-   a function template declared with the concept specifier.  */
+/* True iff T is a function concept definition or an overload set
+   containing multiple function concepts. This will return true for
+   both the template and the underlying declaration.  */
 
 inline bool
 function_concept_p (tree t)
 {
   if (TREE_CODE (t) == OVERLOAD)
     t = OVL_FIRST (t);
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return TREE_CODE (r) == FUNCTION_DECL && DECL_DECLARED_CONCEPT_P (r);
-  return false;
+  if (TREE_CODE (t) == TEMPLATE_DECL)
+    t = DECL_TEMPLATE_RESULT (t);
+  return TREE_CODE (t) == FUNCTION_DECL && DECL_DECLARED_CONCEPT_P (t);
 }
 
-/* True iff T is a concept definition. That is, T is a variable or function
-   template declared with the concept specifier.  */
-
-inline bool
-concept_template_p (tree t)
-{
-  if (TREE_CODE (t) != TEMPLATE_DECL)
-    return false;
-  if (tree r = DECL_TEMPLATE_RESULT (t))
-    return VAR_OR_FUNCTION_DECL_P (r) && DECL_DECLARED_CONCEPT_P (r);
-  return false;
-}
-
-/* True iff T is a concept definition or a template that defines the 
-   concept. This will also return true for concepts-ts style concepts.  */
+/* True iff T is a standard, variable, or function concept.  */
 
 inline bool
 concept_definition_p (tree t)
@@ -7756,40 +7749,42 @@ concept_definition_p (tree t)
   if (t == error_mark_node)
     return false;
 
+  /* Adjust for function concept overloads.  */
+  if (TREE_CODE (t) == OVERLOAD)
+    t = OVL_FIRST (t);
+
+  /* See through templates. */
   if (TREE_CODE (t) == TEMPLATE_DECL)
     t = DECL_TEMPLATE_RESULT (t);
-  
+
   /* The obvious and easy case.  */
   if (TREE_CODE (t) == CONCEPT_DECL)
     return true;
-  
-  /* Adjust overloads if needed.  */
-  if (BASELINK_P (t))
-    t = BASELINK_FUNCTIONS (t);
-  if (OVL_P (t))
-    t = OVL_FIRST (const_cast<tree>(t));
 
   /* Definitely not a concept.  */
   if (!VAR_OR_FUNCTION_DECL_P (t))
     return false;
   if (!DECL_LANG_SPECIFIC (t))
     return false;
-  
+
   return DECL_DECLARED_CONCEPT_P (t);
 }
 
 /* Same as above, but for const trees.  */
+
 inline bool
 concept_definition_p (const_tree t)
 {
   return concept_definition_p (const_cast<tree> (t));
 }
 
-/* True if t is a template-id that refers to concept definition.  */
+/* True if t is an expression that checks a concept.  */
 
 inline bool
 concept_check_p (const_tree t)
 {
+  if (TREE_CODE (t) == CALL_EXPR)
+    t = CALL_EXPR_FN (t);
   if (TREE_CODE (t) == TEMPLATE_ID_EXPR)
     return concept_definition_p (TREE_OPERAND (t, 0));
   return false;

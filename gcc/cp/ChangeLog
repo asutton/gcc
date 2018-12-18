@@ -1,3 +1,37 @@
+2019-12-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
+
+	Cleaning up handling of different kinds of concepts.
+	* constraint.cc (function_concept_check_p): Removed.
+	(variable_concept_check_p): Likewise.
+	(unpack_concept_check): New.
+	(build_call_check): Moved and renamed to build_function_check.
+	(build_variable_check): Moved.
+	(normalize_concept_check): Use unpack_concept_check.
+	(normalize_atom): Unify cases for different kinds of concepts.
+	(build_concept_check_arguments): make static.
+	(build_standard_check): Renamed from build_real_concept_check.
+	(build_concept_check): Enumerate cases more precisely.
+	(satisfy_check): Preparing to unpack concept check info.
+	* cp-tree.h: (standard_concept_p): New.
+	(variable_concept_p): Rewrite.
+	(function_concept_p): Rewrite.
+	(concept_definition_p): Match any kind of concept definition as the
+	first operand of a template-id.
+	(concept_check_p): Unwrap call expressions first.
+	* parser.c: (cp_parser_template_id): Handle the different cases
+	we can get from cp_parser_maybe_constrained_type_specifier.
+	Build concept checks only when we need to.
+	(cp_parser_maybe_constrained_type_specifier): Reject non-concepts
+	more carefully. Return concept checks in the case of ambiguous
+	deduction.
+	(cp_parser_maybe_concept_name): Check for concepts more carefully.
+	* pt.c (coerce_template_parms): Use concept_definition_p.
+	(coerce_template_parms): Handle a deduction error where a potentially
+	empty pack can be supplied after the last parameter of a concept.
+	This probably affects alias templates too.
+	(lookup_template_variable): Redirect to build_concept_check.
+	(finish_template_variable): Add a FIXME for future work.
+
 2018-12-17  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fixing issues from git merge.
@@ -1066,8 +1100,8 @@
 	(normalize_atom): Remove unused check for constraints.
 	(build_constraint_info): Remove the surrounding inline namespace
 	and make the function static.
-	* cp-tree.h: (expand_concept): Removed; no longer used. 
-	(concept_definition_p) Overload and use const_cast to suppress 
+	* cp-tree.h: (expand_concept): Removed; no longer used.
+	(concept_definition_p) Overload and use const_cast to suppress
 	warnings about explicit casts that remove cv-quals.
 
 2018-10-18  Andrew Sutton  <andrew.n.sutton@gmail.com>
@@ -1146,7 +1180,7 @@
 	static functions. Rename cxx_satisfy functions to plain satisfy.
 	* cp-objcp-common.c (cp_common_init_ts): Rename PRED_CONSTR to
 	ATOMIC_CONSTR.
-	* cp-tree.def: Likewise. Remove unused _CONSTR nodes. 
+	* cp-tree.def: Likewise. Remove unused _CONSTR nodes.
 	* cp-tree.h: Likewise. Remove unused _CONSTR macros and removed
 	constraint functions.
 	* cxx-pretty-print.c: Remove constraint processing code.
@@ -1472,12 +1506,12 @@
 	(finish_template_introduction): Pass tsubst flags.
 	(placeholder_extract_concept_and_args): Handle the template-id case.
 	(type_deducible_p): Redo deduction rules.
-	(cxx_satisfy_check): Don't tsubst in a template context. 
+	(cxx_satisfy_check): Don't tsubst in a template context.
 	Add diagnostics.
 	(diagnose_constraints): Pass instantiation context.
 	* cp-tree.h (build_concept_check): New declarations.
 	* cxx-pretty-print.c (pp_cxx_nested_name_specifier): Fix a weird
-	case where we're printing '::::' for concepts. 
+	case where we're printing '::::' for concepts.
 	* error.c (dump_decl): Handle wildcard declarations in dump.
 	* parser.c (cp_parser_template_id): Build concept checks for certain
 	forms of template-id.
@@ -1538,7 +1572,7 @@
 2018-09-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix partial ordering error.
-	* pt.c (more_specialized_partial_spec): Don't immediately return when 
+	* pt.c (more_specialized_partial_spec): Don't immediately return when
 	detecting a winner.
 
 2018-09-10  Andrew Sutton  <andrew.n.sutton@gmail.com>
@@ -1934,7 +1968,7 @@
 2018-08-14  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Fix for pr84551.
-	* constraint.cc (build_constraints): Combine expressions, not 
+	* constraint.cc (build_constraints): Combine expressions, not
 	constraints.
 	(tsubst_constraint_info): Substitute through template and declaration
 	constraints as expressions.
@@ -2167,7 +2201,7 @@
 
 	Implement new template equivalence rules.
 	* cp-tree.h (template_heads_equivalent_p): New.
-	* decl.c (check_misplaced_requirement): New. Placeholder for a 
+	* decl.c (check_misplaced_requirement): New. Placeholder for a
 	diagnostic.
 	(function_requirements_equivalent_p): New. Compare trailing
 	requires clauses.
@@ -2253,7 +2287,7 @@
 	* call.c (joust): Disable redundant subsumption check.
 	* constraint.cc (subst_info): Moved.
 	* (variable_concept_check_p): New.
-	* (expand_concept): Get the concept definition directly. Don't 
+	* (expand_concept): Get the concept definition directly. Don't
 	normalize or learn implications.
 	(normalize_logical_operation): Pass substitution info through call.
 	(normalize_simple_requirement): Delete.
@@ -2459,8 +2493,8 @@
 	* cp-tree.h (finish_constraint_primary_expr): Accept a location_t.
 	(combine_constraint_expressions): New.
 	* decl.c (grokfndecl): Don't normalize constraints.
-	* parser.c (cp_parser_type_parameter): Combine expressions not 
-	constraints. 
+	* parser.c (cp_parser_type_parameter): Combine expressions not
+	constraints.
 	(cp_parser_constraint_primary_expression): Track source locations.
 	(cp_parser_explicit_template_declaration): Combine expressions not
 	constraints.
@@ -2526,13 +2560,13 @@
 	(build_concept_check): Build concept checks for concept definitions.
 	(evaluate_concept): New.
 	* cp-tree.h (evaluate_concept): New.
-	* parser.c (cp_parser_template_id): Parse concept checks as 
+	* parser.c (cp_parser_template_id): Parse concept checks as
 	template-ids.
 
 2018-07-11  Andrew Sutton  <andrew.n.sutton@gmail.com>
 
 	Implement declaration rules for concepts.
-	* cp-tree.h (concept_definition_p): Allow templates as concept 
+	* cp-tree.h (concept_definition_p): Allow templates as concept
 	definitions.
 	* cxx-pretty-print.c (pp_cxx_concept_definition): New.
 	(pp_cxx_template_declaration): Print concept definitions.

@@ -12,7 +12,7 @@ template<typename... Args>
 concept UnaryPack = (sizeof...(Args) == 1);
 
 template<typename... Args>
-  requires Integral<Args...>
+  requires Integral<Args...> // { dg-error "pack expansion argument" }
 void f1();
 
 template<typename... Args>

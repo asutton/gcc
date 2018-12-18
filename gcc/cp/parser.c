@@ -16355,8 +16355,26 @@ cp_parser_template_id (cp_parser *parser,
       template_id = cp_parser_maybe_partial_concept_id (parser, 
 							templ, 
 							arguments);
-      if (!template_id)
-	template_id = build_concept_check (templ, arguments, tf_none);
+      
+      /* We deduced a constrained type specifier.  */
+      if (template_id && TREE_CODE (template_id) == TYPE_DECL)
+      	return template_id;
+
+      /* If it's not a constrained-type specifier, and we didn't build a 
+         normal concept check when deducing that, then build a normal
+         check now.  */
+      if (!template_id || !concept_check_p (template_id))
+	template_id = build_concept_check (templ,
+					   arguments,
+					   tf_warning_or_error);
+      if (template_id == error_mark_node)
+        return error_mark_node;
+
+      /* The build_concept_check will prematurely generate call
+         expressions. Extract the template-id from the call.  */
+      if (TREE_CODE (template_id) == CALL_EXPR)
+        template_id = CALL_EXPR_FN (template_id);
+
       if (TREE_CODE (template_id) == TEMPLATE_ID_EXPR)
 	SET_EXPR_LOCATION (template_id, combined_loc);
     }
@@ -17942,7 +17960,8 @@ cp_parser_type_name (cp_parser* parser, bool typename_keyword_p)
 
 static tree
 cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
-					    tree decl, tree args)
+					    tree decl, 
+                                            tree args)
 {
   gcc_assert (args ? TREE_CODE (args) == TREE_VEC : true);
 
@@ -17950,13 +17969,8 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
   if (parser->prevent_constrained_type_specifiers)
     return NULL_TREE;
 
-  /* A constrained type specifier can only be found in an
-     overload set or as a reference to a template declaration.
-
-     FIXME: This might be masking a bug. It's possible that
-     that the deduction below is causing template specializations
-     to be formed with the wildcard as an argument.  */
-  if (TREE_CODE (decl) != OVERLOAD && TREE_CODE (decl) != TEMPLATE_DECL)
+  /* Only concepts are constrained type specifiers.  */
+  if (!concept_definition_p (decl))
     return NULL_TREE;
 
   /* Try to build a call expression that evaluates the concept. 
@@ -17979,18 +17993,23 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
 	  requires C<T> // ambiguity
 	void f(T);
 
+     The formed type specifier would be C<?, T>, which would present a valid
+     deduction against C.
+
+     We can also get this problem with default arguments.
+
      Prefer the concept check over the constrained-type-specifier by
      rejecting this as a type specifier if C<Args...> is a template-id.
 
-     FIXME: If the next token is `auto`, then this is clearly intended
-     to be a constrained-type-specifier.  */
+     NOTE: This is made unambiguous with P1141 since the auto is required.  */
   if (args)
     {
-      tree alt_check = build_concept_check (decl, args, tf_none);
-      if (alt_check != error_mark_node)
-	return NULL_TREE;
+      /* Set up a second check for a normal concept check. If that
+         succeeds, then we'll prefer that one. */
+      tree alt = build_concept_check (decl, args, tf_none);
+      if (alt != error_mark_node)
+	return alt;
     }
-
 
   /* Deduce the checked constraint and the prototype parameter.  */
   tree con;
@@ -18056,14 +18075,9 @@ cp_parser_maybe_constrained_type_specifier (cp_parser *parser,
 static tree
 cp_parser_maybe_concept_name (cp_parser* parser, tree decl)
 {
-  if (flag_concepts &&
-  	(concept_definition_p (decl)
-	 || TREE_CODE (decl) == OVERLOAD
-	 || BASELINK_P (decl)
-	 || variable_concept_p (decl)))
+  if (flag_concepts && concept_definition_p (decl))
     return cp_parser_maybe_constrained_type_specifier (parser, decl, NULL_TREE);
-  else
-    return NULL_TREE;
+  return NULL_TREE;
 }
 
 /* Check if DECL and ARGS form a partial-concept-id.  If so,
