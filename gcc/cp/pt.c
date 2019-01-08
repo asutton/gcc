@@ -4669,7 +4669,7 @@ template_parms_level_to_args (tree parms)
    arguments.  The template parameters are represented as a TREE_VEC, in
    the form documented in cp-tree.h for template arguments.  */
 
-static tree
+tree
 template_parms_to_args (tree parms)
 {
   tree header;
@@ -11662,6 +11662,7 @@ tsubst_template_arg (tree t, tree args, tsubst_flags_t complain, tree in_decl)
       if (!(complain & tf_warning))
 	--c_inhibit_evaluation_warnings;
     }
+
   return r;
 }
 

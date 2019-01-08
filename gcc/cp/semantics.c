@@ -3740,9 +3740,10 @@ finish_id_expression (tree id_expression,
       if (! error_operand_p (decl)
 	  && !dependent_p
 	  && integral_constant_expression_p
-	  && ! decl_constant_var_p (decl)
+	  && !decl_constant_var_p (decl)
 	  && TREE_CODE (decl) != CONST_DECL
-	  && ! builtin_valid_in_constant_expr_p (decl))
+	  && !builtin_valid_in_constant_expr_p (decl)
+	  && !concept_check_p (decl))
 	{
 	  if (!allow_non_integral_constant_expression_p)
 	    {
@@ -3772,6 +3773,16 @@ finish_id_expression (tree id_expression,
 	  decl = finish_template_variable (decl);
 	  mark_used (decl);
 	  decl = convert_from_reference (decl);
+	}
+      else if (concept_check_p (decl))
+	{
+	  /* If this is a standard or variable concept check, potentially
+	     evaluate it. Function concepts need to be called as functions,
+	     so don't try evaluating them here.  */
+	  tree tmpl = TREE_OPERAND (decl, 0);
+	  tree args = TREE_OPERAND (decl, 1);
+	  if (!function_concept_p (tmpl) && !uses_template_parms (args))
+	    decl = evaluate_concept_check (decl);
 	}
       else if (scope)
 	{
@@ -3841,16 +3852,6 @@ finish_id_expression (tree id_expression,
 	    }
 
 	  decl = baselink_for_fns (decl);
-	}
-      else if (concept_check_p (decl))
-	{
-	  /* If this is a standard or variable concept check, potentially
-	     evaluate it. Function concepts need to be called as functions,
-	     so don't try evaluating them here.  */
-	  tree tmpl = TREE_OPERAND (decl, 0);
-	  tree args = TREE_OPERAND (decl, 1);
-	  if (!function_concept_p (tmpl) && !uses_template_parms (args))
-	    decl = evaluate_concept_check (decl);
 	}
       else
 	{
